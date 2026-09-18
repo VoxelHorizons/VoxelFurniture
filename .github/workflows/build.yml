@@ -1,0 +1,42 @@
+name: Build VoxelFurniture
+
+on:
+  push:
+    branches: [main, 'feat/**', 'fix/**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout VoxelFurniture
+        uses: actions/checkout@v4
+
+      - name: Checkout VoxelCore dependency
+        uses: actions/checkout@v4
+        with:
+          repository: VoxelHorizons/VoxelCore
+          path: VoxelCore
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 25
+          cache: maven
+
+      - name: Install VoxelCore API
+        run: mvn -U -f VoxelCore/pom.xml install -DskipTests
+
+      - name: Build and test VoxelFurniture
+        run: mvn -U clean verify
+
+      - name: Upload universal plugin
+        uses: actions/upload-artifact@v4
+        with:
+          name: VoxelFurniture-mc1.12-26.2
+          path: target/VoxelFurniture-*.jar
