@@ -36,10 +36,40 @@ items:
           x: 0.0
           y: 0.0
           z: 0.0
+
+        blocks:
+          - x: 0
+            y: 0
+            z: 0
 ```
 
 Optional `model_item` and `drop` values can point to different VoxelCore item IDs. Explicit `display` definitions
 are rejected on servers without display entities; `auto` falls back safely.
+
+### Collision blocks
+
+The optional `blocks` collection places real blocks with the furniture to provide physical collision. Offsets are
+whole block coordinates relative to the placement cell and rotate with the furniture's snapped yaw. The material
+defaults to `BARRIER`, but another non-air block material can be selected explicitly:
+
+```yaml
+        blocks:
+          1:
+            x: 0
+            y: 0
+            z: 0
+          2:
+            x: 1
+            y: 0
+            z: 0
+            material: BARRIER
+```
+
+Both list syntax and numbered-map syntax are accepted. Placement fails without consuming the item when any resolved
+cell is occupied. The exact cells and materials are stored with each placed instance, so later configuration changes
+cannot make existing furniture remove unrelated blocks. Managed cells are protected from breaking, fluids, pistons,
+entity block changes, and explosions. Left-clicking any managed cell breaks the owning furniture when the player has
+`voxelfurniture.break`; right-clicking it fires the normal `FurnitureInteractEvent`.
 
 ## Commands
 
