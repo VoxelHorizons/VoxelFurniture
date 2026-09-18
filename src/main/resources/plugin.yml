@@ -1,0 +1,27 @@
+name: VoxelFurniture
+version: ${project.version}
+main: org.voxelhorizons.furniture.VoxelFurniture
+api-version: '1.13'
+depend: [VoxelCore]
+
+commands:
+  voxelfurniture:
+    description: VoxelFurniture administration and debugging
+    aliases: [vf]
+    permission: voxelfurniture.use
+
+permissions:
+  voxelfurniture.use:
+    default: true
+  voxelfurniture.place:
+    default: true
+  voxelfurniture.break:
+    default: true
+  voxelfurniture.admin:
+    default: op
+  voxelfurniture.admin.give:
+    default: op
+  voxelfurniture.admin.list:
+    default: op
+  voxelfurniture.admin.remove:
+    default: op
