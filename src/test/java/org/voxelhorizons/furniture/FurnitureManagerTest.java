@@ -1,6 +1,13 @@
 package org.voxelhorizons.furniture;
 
+import org.bukkit.Location;
+import org.bukkit.Material;
 import org.junit.Test;
+import org.voxelhorizons.furniture.model.FurnitureBlockDefinition;
+import org.voxelhorizons.furniture.model.FurnitureBlockPosition;
+
+import java.util.Arrays;
+import java.util.List;
 
 import static org.junit.Assert.assertEquals;
 
@@ -15,5 +22,27 @@ public class FurnitureManagerTest {
 
     @Test public void wrapsFullRotation() {
         assertEquals(0.0F, FurnitureManager.snapYaw(359.0F, 45.0F), 0.001F);
+    }
+
+    @Test public void rotatesCollisionBlocksAroundPlacementOrigin() {
+        List<FurnitureBlockPosition> blocks = FurnitureManager.resolveBlocks(Arrays.asList(
+                new FurnitureBlockDefinition(1, 0, 0, Material.BARRIER),
+                new FurnitureBlockDefinition(0, 1, -1, Material.BARRIER)
+        ), new Location(null, 10.5D, 64.0D, 20.5D), 90.0F);
+
+        assertEquals(10, blocks.get(0).x());
+        assertEquals(64, blocks.get(0).y());
+        assertEquals(21, blocks.get(0).z());
+        assertEquals(11, blocks.get(1).x());
+        assertEquals(65, blocks.get(1).y());
+        assertEquals(20, blocks.get(1).z());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsCellsThatOverlapAfterRotation() {
+        FurnitureManager.resolveBlocks(Arrays.asList(
+                new FurnitureBlockDefinition(-2, 0, 0, Material.BARRIER),
+                new FurnitureBlockDefinition(-1, 0, 0, Material.BARRIER)
+        ), new Location(null, 0.5D, 64.0D, 0.5D), 45.0F);
     }
 }
