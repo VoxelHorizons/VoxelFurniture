@@ -1,0 +1,10 @@
+schema: 1
+
+# AUTO uses ItemDisplay + Interaction on 1.19.4+ and armor stands on older servers.
+renderer: AUTO
+
+# Furniture is rotated to the nearest configured step unless the item overrides it.
+default-rotation-step: 45.0
+
+# Protect managed entities from unrelated damage and manipulation.
+protect-entities: true
