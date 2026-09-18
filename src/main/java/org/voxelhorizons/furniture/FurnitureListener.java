@@ -10,6 +10,13 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.EntityExplodeEvent;
+import org.bukkit.event.entity.EntityChangeBlockEvent;
+import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockExplodeEvent;
+import org.bukkit.event.block.BlockFromToEvent;
+import org.bukkit.event.block.BlockPistonExtendEvent;
+import org.bukkit.event.block.BlockPistonRetractEvent;
 import org.bukkit.event.player.PlayerArmorStandManipulateEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
@@ -22,6 +29,7 @@ import org.voxelhorizons.furniture.model.FurnitureDefinition;
 import org.voxelhorizons.furniture.model.FurnitureInstance;
 
 import java.util.Optional;
+import java.util.Iterator;
 
 public final class FurnitureListener implements Listener {
     private final VoxelCore core;
@@ -37,6 +45,7 @@ public final class FurnitureListener implements Listener {
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onPlace(PlayerInteractEvent event) {
         if (event.getAction() != org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK || event.getClickedBlock() == null) return;
+        if (furniture.byBlock(event.getClickedBlock()).isPresent()) return;
         if (event.getHand() != null && event.getHand() != EquipmentSlot.HAND) return;
         if (event.getBlockFace() != BlockFace.UP) return;
         Player player = event.getPlayer();
@@ -55,6 +64,76 @@ public final class FurnitureListener implements Listener {
         if (player.getGameMode() != org.bukkit.GameMode.CREATIVE) {
             if (held.getAmount() <= 1) player.getInventory().setItemInMainHand(null);
             else held.setAmount(held.getAmount() - 1);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onCollisionInteract(PlayerInteractEvent event) {
+        if (event.getClickedBlock() == null) return;
+        Optional<FurnitureInstance> instance = furniture.byBlock(event.getClickedBlock());
+        if (!instance.isPresent()) return;
+        if (event.getAction() == org.bukkit.event.block.Action.LEFT_CLICK_BLOCK) {
+            event.setCancelled(true);
+            if (event.getPlayer().hasPermission("voxelfurniture.break")) {
+                furniture.breakFurniture(event.getPlayer(), instance.get());
+            }
+        } else if (event.getAction() == org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK) {
+            event.setCancelled(true);
+            org.bukkit.Bukkit.getPluginManager().callEvent(
+                    new FurnitureInteractEvent(event.getPlayer(), instance.get()));
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onCollisionBreak(BlockBreakEvent event) {
+        Optional<FurnitureInstance> instance = furniture.byBlock(event.getBlock());
+        if (!instance.isPresent()) return;
+        event.setCancelled(true);
+        if (event.getPlayer().hasPermission("voxelfurniture.break")) {
+            furniture.breakFurniture(event.getPlayer(), instance.get());
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onFlow(BlockFromToEvent event) {
+        if (furniture.byBlock(event.getToBlock()).isPresent()) event.setCancelled(true);
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onEntityChangeBlock(EntityChangeBlockEvent event) {
+        if (furniture.byBlock(event.getBlock()).isPresent()) event.setCancelled(true);
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onPistonExtend(BlockPistonExtendEvent event) {
+        for (Block block : event.getBlocks()) {
+            if (furniture.byBlock(block).isPresent()
+                    || furniture.byBlock(block.getRelative(event.getDirection())).isPresent()) {
+                event.setCancelled(true);
+                return;
+            }
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onPistonRetract(BlockPistonRetractEvent event) {
+        for (Block block : event.getBlocks()) {
+            if (furniture.byBlock(block).isPresent()) {
+                event.setCancelled(true);
+                return;
+            }
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onEntityExplosion(EntityExplodeEvent event) { protectExplosion(event.blockList().iterator()); }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onBlockExplosion(BlockExplodeEvent event) { protectExplosion(event.blockList().iterator()); }
+
+    private void protectExplosion(Iterator<Block> blocks) {
+        while (blocks.hasNext()) {
+            if (furniture.byBlock(blocks.next()).isPresent()) blocks.remove();
         }
     }
 
