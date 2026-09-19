@@ -109,6 +109,7 @@ public final class FurnitureManager {
     }
 
     public Optional<FurnitureInstance> place(Player player, FurnitureDefinition definition, Location location) {
+        cleanupOriginChunk(location);
         float yaw = snapYaw(player.getLocation().getYaw(), definition.rotationStep());
         List<FurnitureBlockPosition> collisionBlocks = resolveBlocks(definition.blocks(), location, yaw);
         BlockKey origin = BlockKey.of(location);
@@ -163,6 +164,7 @@ public final class FurnitureManager {
                     core.getItemManager().createItem(definition.dropItemId()));
         }
         save();
+        cleanupOriginChunk(instance.location());
         return true;
     }
 
@@ -182,6 +184,7 @@ public final class FurnitureManager {
                     core.getItemManager().createItem(definition.dropItemId()));
         }
         save();
+        cleanupOriginChunk(instance.location());
         return true;
     }
 
@@ -373,9 +376,10 @@ public final class FurnitureManager {
         List<FurnitureBlockPosition> desiredBlocks =
                 resolveBlocks(definition.blocks(), instance.location(), instance.yaw());
         ItemStack modelItem = core.getItemManager().createRenderItem(selected.model());
-        String signature = renderSignature(definition, selected, replacementRenderer.type(), desiredBlocks, modelItem);
+        String desiredSignature = renderSignature(
+                definition, selected, replacementRenderer.type(), desiredBlocks, modelItem);
 
-        if (!force && signature.equals(instance.renderSignature()) && rendererEntitiesPresent(instance)) {
+        if (!force && desiredSignature.equals(instance.renderSignature()) && rendererEntitiesPresent(instance)) {
             refreshSeat(instance, definition);
             return true;
         }
@@ -399,9 +403,11 @@ public final class FurnitureManager {
                 }
             }
 
+            String appliedSignature = renderSignature(
+                    definition, selected, replacementRenderer.type(), finalBlocks, modelItem);
             FurnitureInstance updated = new FurnitureInstance(instance.id(), instance.definitionId(),
                     instance.location(), instance.yaw(), replacementRenderer.type(), replacement, finalBlocks,
-                    selected.model(), selected.yaw(), signature);
+                    selected.model(), selected.yaw(), appliedSignature);
 
             // Remove the renderer that furniture.yml currently owns before
             // replacing its UUIDs. If any historical renderer cannot be found
@@ -422,7 +428,8 @@ public final class FurnitureManager {
     }
 
     private boolean rendererEntitiesPresent(FurnitureInstance instance) {
-        if (instance.entities().isEmpty()) return false;
+        int expected = instance.renderer() == org.voxelhorizons.furniture.model.FurnitureRendererType.DISPLAY ? 2 : 1;
+        if (instance.entities().size() != expected) return false;
         for (UUID id : instance.entities()) {
             Entity entity = EntitySupport.find(id);
             if (entity == null || !entity.getScoreboardTags().contains("voxelfurniture")) return false;
@@ -483,12 +490,24 @@ public final class FurnitureManager {
         Set<UUID> referenced = referencedEntityIds();
         int removed = 0;
         for (Entity entity : chunk.getEntities()) {
-            if (!entity.getScoreboardTags().contains("voxelfurniture")) continue;
-            if (referenced.contains(entity.getUniqueId())) continue;
+            if (!isOrphanRenderer(entity.getUniqueId(), entity.getScoreboardTags(), referenced)) continue;
             entity.remove();
             removed++;
         }
         return removed;
+    }
+
+    static boolean isOrphanRenderer(UUID entityId, Set<String> tags, Set<UUID> referenced) {
+        return tags.contains("voxelfurniture") && !referenced.contains(entityId);
+    }
+
+    private void cleanupOriginChunk(Location location) {
+        World world = location.getWorld();
+        if (world == null) return;
+        int chunkX = location.getBlockX() >> 4;
+        int chunkZ = location.getBlockZ() >> 4;
+        if (!world.isChunkLoaded(chunkX, chunkZ)) return;
+        cleanupOrphans(world.getChunkAt(chunkX, chunkZ));
     }
 
     private Set<UUID> referencedEntityIds() {
