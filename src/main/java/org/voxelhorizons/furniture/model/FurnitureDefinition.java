@@ -14,6 +14,7 @@ public final class FurnitureDefinition {
     private final float width;
     private final float height;
     private final float scale;
+    private final float viewDistance;
     private final float rotationStep;
     private final FurniturePlacement placement;
     private final FurnitureSeatDefinition seat;
@@ -27,7 +28,7 @@ public final class FurnitureDefinition {
                                FurnitureRendererType renderer, float width, float height, float scale,
                                float rotationStep, double offsetX, double offsetY, double offsetZ,
                                List<FurnitureBlockDefinition> blocks) {
-        this(itemId, modelItemId, dropItemId, renderer, width, height, scale, rotationStep,
+        this(itemId, modelItemId, dropItemId, renderer, width, height, scale, 64.0F, rotationStep,
                 FurniturePlacement.TOP, null, offsetX, offsetY, offsetZ, blocks,
                 Collections.<FurnitureStateRule>emptyList());
     }
@@ -36,13 +37,13 @@ public final class FurnitureDefinition {
                                FurnitureRendererType renderer, float width, float height, float scale,
                                float rotationStep, double offsetX, double offsetY, double offsetZ,
                                List<FurnitureBlockDefinition> blocks, List<FurnitureStateRule> states) {
-        this(itemId, modelItemId, dropItemId, renderer, width, height, scale, rotationStep,
+        this(itemId, modelItemId, dropItemId, renderer, width, height, scale, 64.0F, rotationStep,
                 FurniturePlacement.TOP, null, offsetX, offsetY, offsetZ, blocks, states);
     }
 
     public FurnitureDefinition(ContentID itemId, ContentID modelItemId, ContentID dropItemId,
                                FurnitureRendererType renderer, float width, float height, float scale,
-                               float rotationStep, FurniturePlacement placement,
+                               float viewDistance, float rotationStep, FurniturePlacement placement,
                                FurnitureSeatDefinition seat,
                                double offsetX, double offsetY, double offsetZ,
                                List<FurnitureBlockDefinition> blocks, List<FurnitureStateRule> states) {
@@ -53,6 +54,7 @@ public final class FurnitureDefinition {
         this.width = width;
         this.height = height;
         this.scale = scale;
+        this.viewDistance = viewDistance;
         this.rotationStep = rotationStep;
         this.placement = placement;
         this.seat = seat;
@@ -70,6 +72,7 @@ public final class FurnitureDefinition {
     public float width() { return width; }
     public float height() { return height; }
     public float scale() { return scale; }
+    public float viewDistance() { return viewDistance; }
     public float rotationStep() { return rotationStep; }
     public FurniturePlacement placement() { return placement; }
     public FurnitureSeatDefinition seat() { return seat; }
