@@ -16,11 +16,13 @@ import java.util.Set;
 
 public final class FurnitureDefinitionParser {
     private static final Set<String> KEYS = new HashSet<String>(Arrays.asList(
-            "renderer", "model_item", "drop", "hitbox", "scale", "rotation_step", "offset", "blocks"
+            "renderer", "model_item", "drop", "hitbox", "scale", "rotation_step", "offset", "blocks", "blockstates"
     ));
     private static final Set<String> HITBOX_KEYS = new HashSet<String>(Arrays.asList("width", "height"));
     private static final Set<String> OFFSET_KEYS = new HashSet<String>(Arrays.asList("x", "y", "z"));
     private static final Set<String> BLOCK_KEYS = new HashSet<String>(Arrays.asList("x", "y", "z", "material"));
+    private static final Set<String> STATE_KEYS = new HashSet<String>(Arrays.asList(
+            "neighbors", "absent", "model_item", "rotation", "rotate"));
 
     private final FurnitureRendererType defaultRenderer;
     private final float defaultRotationStep;
@@ -65,8 +67,45 @@ public final class FurnitureDefinitionParser {
         }
         List<FurnitureBlockDefinition> blocks = map.containsKey("blocks")
                 ? blocks(item, map.get("blocks")) : Collections.<FurnitureBlockDefinition>emptyList();
+        List<FurnitureStateRule> states = map.containsKey("blockstates")
+                ? states(item, map.get("blockstates")) : Collections.<FurnitureStateRule>emptyList();
+        if (!states.isEmpty() && (rotationStep != 90.0f || blocks.size() != 1
+                || blocks.get(0).x() != 0 || blocks.get(0).y() != 0 || blocks.get(0).z() != 0)) {
+            throw invalid(item, "blockstates require rotation_step: 90 and a single collision block at 0,0,0");
+        }
         return Optional.of(new FurnitureDefinition(item.id(), modelItem, drop, renderer, width, height, scale,
-                rotationStep, x, y, z, blocks));
+                rotationStep, x, y, z, blocks, states));
+    }
+
+    private static List<FurnitureStateRule> states(ItemDefinition item, Object raw) {
+        if (!(raw instanceof Collection)) throw invalid(item, "blockstates must be a list");
+        List<FurnitureStateRule> result = new ArrayList<FurnitureStateRule>();
+        for (Object entry : (Collection<?>) raw) {
+            Map<?, ?> state = nested(item, entry, "blockstates entry");
+            rejectUnknown(item, state, STATE_KEYS, "blockstates entry");
+            if (!state.containsKey("model_item")) throw invalid(item, "blockstates entry requires model_item");
+            int required = directions(item, state.get("neighbors"), "neighbors");
+            int absent = directions(item, state.get("absent"), "absent");
+            float offset = (float) number(item, state.get("rotation"), 0, "blockstates.rotation");
+            if (!(state.get("rotate") == null || state.get("rotate") instanceof Boolean))
+                throw invalid(item, "blockstates.rotate must be a boolean");
+            boolean rotate = !Boolean.FALSE.equals(state.get("rotate"));
+            result.add(new FurnitureStateRule(required, absent,
+                    contentId(item, state.get("model_item"), item.id(), "blockstates.model_item"), offset, rotate));
+        }
+        return result;
+    }
+
+    private static int directions(ItemDefinition item, Object raw, String field) {
+        if (raw == null) return 0;
+        if (!(raw instanceof Collection)) throw invalid(item, "blockstates." + field + " must be a list");
+        int mask = 0;
+        for (Object value : (Collection<?>) raw) {
+            int bit = Arrays.asList("north", "east", "south", "west").indexOf(value);
+            if (bit < 0) throw invalid(item, "blockstates." + field + " has invalid direction " + value);
+            mask |= 1 << bit;
+        }
+        return mask;
     }
 
     private static List<FurnitureBlockDefinition> blocks(ItemDefinition item, Object raw) {

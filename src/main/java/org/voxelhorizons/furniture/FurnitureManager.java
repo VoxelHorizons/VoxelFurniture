@@ -18,6 +18,8 @@ import org.voxelhorizons.furniture.model.FurnitureBlockDefinition;
 import org.voxelhorizons.furniture.model.FurnitureBlockPosition;
 import org.voxelhorizons.furniture.model.FurnitureDefinitionParser;
 import org.voxelhorizons.furniture.model.FurnitureInstance;
+import org.voxelhorizons.furniture.model.FurnitureStateSelector;
+import org.voxelhorizons.furniture.model.FurnitureStateRule;
 import org.voxelhorizons.furniture.render.FurnitureRenderer;
 import org.voxelhorizons.furniture.render.FurnitureRendererSelector;
 import org.voxelhorizons.furniture.store.FurnitureStore;
@@ -60,6 +62,7 @@ public final class FurnitureManager {
     public Map<ContentID, FurnitureDefinition> definitions() {
         Map<ContentID, FurnitureDefinition> result = new LinkedHashMap<ContentID, FurnitureDefinition>();
         for (ItemDefinition item : core.getItemRegistry().entries().values()) {
+            if (item.abstractDefinition()) continue;
             Optional<FurnitureDefinition> definition = definitions.parse(item);
             if (definition.isPresent()) result.put(item.id(), definition.get());
         }
@@ -87,19 +90,21 @@ public final class FurnitureManager {
         FurniturePlaceEvent event = new FurniturePlaceEvent(player, definition, location);
         Bukkit.getPluginManager().callEvent(event);
         if (event.isCancelled()) return Optional.empty();
-        ItemStack modelItem = core.getItemManager().createItem(definition.modelItemId());
+        FurnitureStateSelector.Selection state = state(definition, location, yaw);
+        ItemStack modelItem = core.getItemManager().createRenderItem(state.model());
         FurnitureRenderer renderer = renderers.select(definition.renderer());
         List<FurnitureBlockPosition> placed = new ArrayList<FurnitureBlockPosition>();
         List<UUID> entities = Collections.emptyList();
         FurnitureInstance instance = null;
         try {
             placeBlocks(location.getWorld(), collisionBlocks, placed);
-            entities = renderer.spawn(location, yaw, modelItem, definition);
+            entities = renderer.spawn(location, state.yaw(), modelItem, definition);
             instance = new FurnitureInstance(UUID.randomUUID(), definition.itemId(), location, yaw,
-                    renderer.type(), entities, collisionBlocks);
+                    renderer.type(), entities, collisionBlocks, state.model(), state.yaw());
             instances.put(instance.id(), instance);
             index(instance);
             save();
+            refreshAround(location);
             return Optional.of(instance);
         } catch (RuntimeException exception) {
             if (instance != null) {
@@ -121,6 +126,7 @@ public final class FurnitureManager {
         removeBlocks(instance.location().getWorld(), instance.blocks());
         instances.remove(instance.id());
         unindex(instance);
+        refreshAround(instance.location());
         if (definition != null && player.getGameMode() != GameMode.CREATIVE) {
             instance.location().getWorld().dropItemNaturally(instance.location(),
                     core.getItemManager().createItem(definition.dropItemId()));
@@ -135,6 +141,7 @@ public final class FurnitureManager {
         renderers.select(instance.renderer()).remove(instance.entities());
         removeBlocks(instance.location().getWorld(), instance.blocks());
         unindex(instance);
+        refreshAround(instance.location());
         if (drop) {
             FurnitureDefinition definition = definition(instance.definitionId()).orElse(null);
             if (definition != null) instance.location().getWorld().dropItemNaturally(instance.location(),
@@ -147,15 +154,74 @@ public final class FurnitureManager {
     public void validateDefinitions() {
         Map<ContentID, FurnitureDefinition> parsed = definitions();
         for (FurnitureDefinition furniture : parsed.values()) {
-            if (!core.getItemManager().hasItem(furniture.modelItemId())) {
+            if (!renderable(furniture.modelItemId())) {
                 throw new IllegalArgumentException("Furniture " + furniture.itemId() + " references unknown model_item "
                         + furniture.modelItemId());
             }
-            if (!core.getItemManager().hasItem(furniture.dropItemId())) {
+            if (!core.getItemManager().hasItem(furniture.dropItemId())
+                    || core.getItemManager().getDefinition(furniture.dropItemId()).get().abstractDefinition()) {
                 throw new IllegalArgumentException("Furniture " + furniture.itemId() + " references unknown drop "
                         + furniture.dropItemId());
             }
             renderers.select(furniture.renderer());
+            for (FurnitureStateRule rule : furniture.states()) {
+                if (!renderable(rule.model())) throw new IllegalArgumentException("Furniture " + furniture.itemId()
+                        + " references unrenderable blockstate model " + rule.model());
+            }
+        }
+    }
+
+    private boolean renderable(ContentID id) {
+        Optional<ItemDefinition> item = core.getItemManager().getDefinition(id);
+        return item.isPresent() && item.get().material() != null && item.get().render() != null
+                && item.get().render().model() != null;
+    }
+
+    /** Refreshes loaded furniture after content reload or restart. */
+    public void refreshStates() {
+        for (FurnitureInstance instance : new ArrayList<FurnitureInstance>(instances.values())) refresh(instance);
+    }
+
+    private FurnitureStateSelector.Selection state(FurnitureDefinition definition, Location location, float yaw) {
+        int mask = 0;
+        int[][] offsets = {{0, -1}, {1, 0}, {0, 1}, {-1, 0}};
+        for (int index = 0; index < offsets.length; index++) {
+            UUID id = blockIndex.get(new BlockKey(location.getWorld().getUID(), location.getBlockX() + offsets[index][0],
+                    location.getBlockY(), location.getBlockZ() + offsets[index][1]));
+            FurnitureInstance neighbor = id == null ? null : instances.get(id);
+            if (neighbor != null && neighbor.definitionId().equals(definition.itemId())) mask |= 1 << index;
+        }
+        return FurnitureStateSelector.select(definition, mask, yaw);
+    }
+
+    private void refreshAround(Location location) {
+        int[][] offsets = {{0, 0}, {0, -1}, {1, 0}, {0, 1}, {-1, 0}};
+        for (int[] offset : offsets) {
+            UUID id = blockIndex.get(new BlockKey(location.getWorld().getUID(), location.getBlockX() + offset[0],
+                    location.getBlockY(), location.getBlockZ() + offset[1]));
+            FurnitureInstance instance = id == null ? null : instances.get(id);
+            if (instance != null) refresh(instance);
+        }
+    }
+
+    private void refresh(FurnitureInstance instance) {
+        FurnitureDefinition definition = definition(instance.definitionId()).orElse(null);
+        if (definition == null || definition.states().isEmpty()) return;
+        FurnitureStateSelector.Selection selected = state(definition, instance.location(), instance.yaw());
+        if (selected.model().equals(instance.renderedModel()) && selected.yaw() == instance.renderedYaw()) return;
+        FurnitureRenderer renderer = renderers.select(instance.renderer());
+        try {
+            List<UUID> replacement = renderer.spawn(instance.location(), selected.yaw(),
+                    core.getItemManager().createRenderItem(selected.model()), definition);
+            FurnitureInstance updated = new FurnitureInstance(instance.id(), instance.definitionId(), instance.location(),
+                    instance.yaw(), instance.renderer(), replacement, instance.blocks(), selected.model(), selected.yaw());
+            unindex(instance);
+            instances.put(updated.id(), updated);
+            index(updated);
+            renderer.remove(instance.entities());
+            save();
+        } catch (RuntimeException exception) {
+            Bukkit.getLogger().warning("Unable to update furniture state " + instance.id() + ": " + exception.getMessage());
         }
     }
 
