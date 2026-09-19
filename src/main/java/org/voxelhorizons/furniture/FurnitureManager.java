@@ -56,7 +56,8 @@ public final class FurnitureManager {
 
     public Optional<FurnitureDefinition> definition(ContentID id) {
         Optional<ItemDefinition> item = core.getItemManager().getDefinition(id);
-        return item.isPresent() ? definitions.parse(item.get()) : Optional.<FurnitureDefinition>empty();
+        return item.isPresent() && !item.get().abstractDefinition()
+                ? definitions.parse(item.get()) : Optional.<FurnitureDefinition>empty();
     }
 
     public Map<ContentID, FurnitureDefinition> definitions() {
