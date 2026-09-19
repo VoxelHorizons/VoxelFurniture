@@ -48,6 +48,38 @@ items:
 Optional `model_item` and `drop` values can point to different VoxelCore item IDs. Explicit `display` definitions
 are rejected on servers without display entities; `auto` falls back safely.
 
+### Scale
+
+`scale` supports both the original uniform numeric form and an axis-specific mapping.
+
+Existing content remains valid:
+
+```yaml
+        scale: 2.0
+```
+
+which is equivalent to:
+
+```yaml
+        scale:
+          x: 2.0
+          y: 2.0
+          z: 2.0
+```
+
+Each axis can also be controlled independently:
+
+```yaml
+        scale:
+          x: 2.0
+          y: 3.0
+          z: 2.0
+```
+
+Missing axes in the mapping default to `1.0`, so `scale: { y: 2.0 }` only stretches the model vertically.
+All scale values must be finite and greater than zero. Axis-specific scaling applies to the modern ItemDisplay
+renderer; the legacy armor-stand renderer does not provide equivalent non-uniform entity scaling.
+
 ### Display view distance
 
 `view_distance` controls the requested ItemDisplay render distance in blocks and defaults to `64`.
@@ -72,7 +104,7 @@ placed furniture is automatically rebuilt from the latest definition, including:
 
 - rendered model/item data and neighbor-selected models
 - renderer choice
-- scale and render offsets
+- uniform or per-axis scale and render offsets
 - interaction hitbox dimensions
 - `view_distance`
 - seat configuration/position
