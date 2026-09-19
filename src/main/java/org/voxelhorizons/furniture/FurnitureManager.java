@@ -89,7 +89,8 @@ public final class FurnitureManager {
         float yaw = snapYaw(player.getLocation().getYaw(), definition.rotationStep());
         List<FurnitureBlockPosition> collisionBlocks = resolveBlocks(definition.blocks(), location, yaw);
         BlockKey origin = BlockKey.of(location);
-        if (originIndex.containsKey(origin) || !canPlace(location.getWorld(), collisionBlocks)) return Optional.empty();
+        if (originIndex.containsKey(origin) || blockIndex.containsKey(origin)
+                || !canPlace(location.getWorld(), collisionBlocks)) return Optional.empty();
         FurniturePlaceEvent event = new FurniturePlaceEvent(player, definition, location);
         Bukkit.getPluginManager().callEvent(event);
         if (event.isCancelled()) return Optional.empty();
@@ -270,7 +271,8 @@ public final class FurnitureManager {
     private boolean canPlace(World world, List<FurnitureBlockPosition> blocks) {
         for (FurnitureBlockPosition position : blocks) {
             Block block = world.getBlockAt(position.x(), position.y(), position.z());
-            if (block.getType() != Material.AIR || blockIndex.containsKey(BlockKey.of(block))) return false;
+            BlockKey key = BlockKey.of(block);
+            if (block.getType() != Material.AIR || blockIndex.containsKey(key) || originIndex.containsKey(key)) return false;
         }
         return true;
     }
