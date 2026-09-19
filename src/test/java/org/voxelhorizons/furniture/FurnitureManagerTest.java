@@ -7,7 +7,11 @@ import org.voxelhorizons.furniture.model.FurnitureBlockDefinition;
 import org.voxelhorizons.furniture.model.FurnitureBlockPosition;
 
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -31,6 +35,21 @@ public class FurnitureManagerTest {
         assertTrue(FurnitureManager.isReplaceable(Material.WATER));
         assertTrue(FurnitureManager.isReplaceable(Material.LAVA));
         assertFalse(FurnitureManager.isReplaceable(Material.STONE));
+    }
+
+    @Test public void removesOnlyUnreferencedFurnitureRendererEntities() {
+        UUID tracked = UUID.randomUUID();
+        UUID orphan = UUID.randomUUID();
+        Set<UUID> referenced = new HashSet<UUID>(Collections.singletonList(tracked));
+
+        assertFalse(FurnitureManager.isOrphanRenderer(
+                tracked, Collections.singleton("voxelfurniture"), referenced));
+        assertTrue(FurnitureManager.isOrphanRenderer(
+                orphan, Collections.singleton("voxelfurniture"), referenced));
+        assertFalse(FurnitureManager.isOrphanRenderer(
+                orphan, Collections.singleton("voxelfurniture-seat"), referenced));
+        assertFalse(FurnitureManager.isOrphanRenderer(
+                orphan, Collections.singleton("unrelated-plugin"), referenced));
     }
 
     @Test public void rotatesCollisionBlocksAroundPlacementOrigin() {
