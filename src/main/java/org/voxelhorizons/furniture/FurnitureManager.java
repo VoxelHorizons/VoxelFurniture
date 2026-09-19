@@ -475,7 +475,7 @@ public final class FurnitureManager {
         }
     }
 
-    private void cleanupLoadedOrphans() {
+    public int cleanupLoadedOrphans() {
         int removed = 0;
         for (World world : Bukkit.getWorlds()) {
             for (Chunk chunk : world.getLoadedChunks()) {
@@ -486,6 +486,7 @@ public final class FurnitureManager {
             plugin.getLogger().warning("Removed " + removed
                     + " orphaned VoxelFurniture renderer entities from currently loaded chunks.");
         }
+        return removed;
     }
 
     int cleanupOrphans(Chunk chunk) {
