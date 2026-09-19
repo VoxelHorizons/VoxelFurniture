@@ -26,6 +26,21 @@ public class FurnitureStateSelectorTest {
         assertEquals(270.0f, FurnitureStateSelector.select(table(), 0, 270).yaw(), 0.01f);
     }
 
+    @Test public void relativeLeftAndRightEndsFollowChairFacingAndIgnorePerpendicularChairs() {
+        FurnitureDefinition chair = new FurnitureDefinition(id("chair"), id("chair"), id("chair"),
+                FurnitureRendererType.AUTO, 1, 1, 1, 90, 0, 0, 0, Collections.emptyList(), Arrays.asList(
+                new FurnitureStateRule(2, 13, id("left"), 0, false, true),
+                new FurnitureStateRule(8, 7, id("right"), 0, false, true),
+                new FurnitureStateRule(10, 5, id("middle"), 0, false, true)));
+        assertEquals(id("left"), FurnitureStateSelector.select(chair, 2, 2, 0).model());
+        assertEquals(id("right"), FurnitureStateSelector.select(chair, 8, 8, 0).model());
+        assertEquals(id("middle"), FurnitureStateSelector.select(chair, 10, 10, 0).model());
+        assertEquals(id("left"), FurnitureStateSelector.select(chair, 4, 4, 90).model());
+        assertEquals(90.0f, FurnitureStateSelector.select(chair, 4, 4, 90).yaw(), 0.01f);
+        assertEquals(id("right"), FurnitureStateSelector.select(chair, 1, 1, 90).model());
+        assertEquals(id("chair"), FurnitureStateSelector.select(chair, 2, 0, 0).model());
+    }
+
     private static FurnitureDefinition table() {
         return new FurnitureDefinition(id("table"), id("table"), id("table"), FurnitureRendererType.AUTO,
                 1, 1, 1, 90, 0, 0, 0, Collections.emptyList(), Arrays.asList(

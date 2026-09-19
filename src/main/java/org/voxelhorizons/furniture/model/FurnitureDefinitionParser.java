@@ -22,7 +22,7 @@ public final class FurnitureDefinitionParser {
     private static final Set<String> OFFSET_KEYS = new HashSet<String>(Arrays.asList("x", "y", "z"));
     private static final Set<String> BLOCK_KEYS = new HashSet<String>(Arrays.asList("x", "y", "z", "material"));
     private static final Set<String> STATE_KEYS = new HashSet<String>(Arrays.asList(
-            "neighbors", "absent", "model_item", "rotation", "rotate"));
+            "neighbors", "absent", "model_item", "rotation", "rotate", "relative"));
 
     private final FurnitureRendererType defaultRenderer;
     private final float defaultRotationStep;
@@ -89,9 +89,12 @@ public final class FurnitureDefinitionParser {
             float offset = (float) number(item, state.get("rotation"), 0, "blockstates.rotation");
             if (!(state.get("rotate") == null || state.get("rotate") instanceof Boolean))
                 throw invalid(item, "blockstates.rotate must be a boolean");
+            if (!(state.get("relative") == null || state.get("relative") instanceof Boolean))
+                throw invalid(item, "blockstates.relative must be a boolean");
             boolean rotate = !Boolean.FALSE.equals(state.get("rotate"));
             result.add(new FurnitureStateRule(required, absent,
-                    contentId(item, state.get("model_item"), item.id(), "blockstates.model_item"), offset, rotate));
+                    contentId(item, state.get("model_item"), item.id(), "blockstates.model_item"), offset,
+                    rotate, Boolean.TRUE.equals(state.get("relative"))));
         }
         return result;
     }

@@ -6,17 +6,26 @@ public final class FurnitureStateSelector {
     private FurnitureStateSelector() { }
 
     public static Selection select(FurnitureDefinition definition, int neighbors, float baseYaw) {
+        return select(definition, neighbors, neighbors, baseYaw);
+    }
+
+    /** Aligned neighbors have the same snapped placement yaw as this furniture. */
+    public static Selection select(FurnitureDefinition definition, int neighbors, int alignedNeighbors, float baseYaw) {
         FurnitureStateRule chosen = null;
         int turns = -1;
         for (FurnitureStateRule rule : definition.states()) {
-            int match = rule.match(neighbors);
+            int localNeighbors = rule.relative()
+                    ? FurnitureStateRule.rotate(alignedNeighbors, (4 - (Math.round(baseYaw / 90.0f) & 3)) & 3)
+                    : neighbors;
+            int match = rule.match(localNeighbors);
             if (match >= 0 && (chosen == null || rule.specificity() > chosen.specificity())) {
                 chosen = rule;
                 turns = match;
             }
         }
-        return chosen == null ? new Selection(definition.modelItemId(), baseYaw)
-                : new Selection(chosen.model(), (turns * 90.0F + chosen.yawOffset()) % 360.0F);
+        if (chosen == null) return new Selection(definition.modelItemId(), baseYaw);
+        float yaw = (turns * 90.0F + chosen.yawOffset() + (chosen.relative() ? baseYaw : 0.0F)) % 360.0F;
+        return new Selection(chosen.model(), yaw < 0 ? yaw + 360.0F : yaw);
     }
 
     public static final class Selection {
