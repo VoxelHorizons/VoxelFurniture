@@ -185,14 +185,18 @@ public final class FurnitureManager {
 
     private FurnitureStateSelector.Selection state(FurnitureDefinition definition, Location location, float yaw) {
         int mask = 0;
+        int alignedMask = 0;
         int[][] offsets = {{0, -1}, {1, 0}, {0, 1}, {-1, 0}};
         for (int index = 0; index < offsets.length; index++) {
             UUID id = blockIndex.get(new BlockKey(location.getWorld().getUID(), location.getBlockX() + offsets[index][0],
                     location.getBlockY(), location.getBlockZ() + offsets[index][1]));
             FurnitureInstance neighbor = id == null ? null : instances.get(id);
-            if (neighbor != null && neighbor.definitionId().equals(definition.itemId())) mask |= 1 << index;
+            if (neighbor != null && neighbor.definitionId().equals(definition.itemId())) {
+                mask |= 1 << index;
+                if (neighbor.yaw() == yaw) alignedMask |= 1 << index;
+            }
         }
-        return FurnitureStateSelector.select(definition, mask, yaw);
+        return FurnitureStateSelector.select(definition, mask, alignedMask, yaw);
     }
 
     private void refreshAround(Location location) {

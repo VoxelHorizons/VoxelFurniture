@@ -9,18 +9,26 @@ public final class FurnitureStateRule {
     private final ContentID model;
     private final float yawOffset;
     private final boolean rotate;
+    private final boolean relative;
 
     public FurnitureStateRule(int required, int absent, ContentID model, float yawOffset, boolean rotate) {
+        this(required, absent, model, yawOffset, rotate, false);
+    }
+
+    public FurnitureStateRule(int required, int absent, ContentID model, float yawOffset,
+                              boolean rotate, boolean relative) {
         if ((required & absent) != 0) throw new IllegalArgumentException("A neighbor cannot be both required and absent");
         this.required = required;
         this.absent = absent;
         this.model = model;
         this.yawOffset = yawOffset;
         this.rotate = rotate;
+        this.relative = relative;
     }
 
     public ContentID model() { return model; }
     public float yawOffset() { return yawOffset; }
+    public boolean relative() { return relative; }
     public int specificity() { return Integer.bitCount(required | absent); }
 
     /** Returns the matched quarter-turn clockwise, or -1. */
@@ -33,7 +41,7 @@ public final class FurnitureStateRule {
         return -1;
     }
 
-    private static int rotate(int mask, int turns) {
+    static int rotate(int mask, int turns) {
         return ((mask << turns) | (mask >>> (4 - turns))) & 15;
     }
 }
