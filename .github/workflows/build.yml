@@ -20,8 +20,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: VoxelHorizons/VoxelCore
-          # Paired VoxelCore PR provides the abstract render API until it merges.
-          ref: feat/furniture-neighbor-states
           path: VoxelCore
 
       - name: Set up Java 25
