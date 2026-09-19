@@ -17,9 +17,8 @@ public final class ArmorStandFurnitureRenderer implements FurnitureRenderer {
 
     @Override
     public List<UUID> spawn(Location location, float yaw, ItemStack modelItem, FurnitureDefinition definition) {
-        Location renderLocation = location.clone().add(definition.offsetX(), definition.offsetY() - 1.45D,
-                definition.offsetZ());
-        renderLocation.setYaw(yaw);
+        Location renderLocation = FurnitureRenderTransform.applyLocalOffset(
+                location, yaw, definition.offsetX(), definition.offsetY() - 1.45D, definition.offsetZ());
         ArmorStand stand = (ArmorStand) renderLocation.getWorld().spawnEntity(renderLocation, EntityType.ARMOR_STAND);
         stand.setVisible(false);
         stand.setGravity(false);
