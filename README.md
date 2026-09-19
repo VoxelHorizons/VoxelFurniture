@@ -32,6 +32,7 @@ items:
           height: 1.2
         scale: 1.0
         rotation_step: 45
+        placement: TOP
         offset:
           x: 0.0
           y: 0.0
@@ -40,6 +41,20 @@ items:
 
 Optional `model_item` and `drop` values can point to different VoxelCore item IDs. Explicit `display` definitions
 are rejected on servers without display entities; `auto` falls back safely.
+
+### Placement faces
+
+`placement` controls which face of a block can be clicked to place the furniture. It defaults to `TOP` for
+backwards compatibility:
+
+- `TOP` - only the top face of a block (`UP`)
+- `BOTTOM` - only the underside of a block (`DOWN`)
+- `SIDE` - any horizontal face (`NORTH`, `EAST`, `SOUTH`, or `WEST`)
+- `ALL` - top, bottom, or any horizontal side
+
+Once an item is recognized as furniture, VoxelFurniture cancels the vanilla item interaction even when placement is
+not allowed or cannot complete. This prevents the item's carrier material from being placed accidentally when, for
+example, a `TOP`-only chair is right-clicked against the side of a block.
 
 ### Collision blocks
 
