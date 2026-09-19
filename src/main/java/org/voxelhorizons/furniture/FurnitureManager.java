@@ -1,12 +1,14 @@
 package org.voxelhorizons.furniture;
 
 import org.bukkit.Bukkit;
+import org.bukkit.Chunk;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.entity.ArmorStand;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.inventory.ItemStack;
@@ -49,6 +51,7 @@ public final class FurnitureManager {
     private final Map<UUID, UUID> entityIndex = new LinkedHashMap<UUID, UUID>();
     private final Map<BlockKey, UUID> blockIndex = new LinkedHashMap<BlockKey, UUID>();
     private final Map<BlockKey, UUID> originIndex = new LinkedHashMap<BlockKey, UUID>();
+    private final Set<UUID> pendingSynchronization = new HashSet<UUID>();
     private long contentRevision;
 
     public FurnitureManager(Plugin plugin, VoxelCore core, FurnitureDefinitionParser definitions,
@@ -59,6 +62,7 @@ public final class FurnitureManager {
         this.renderers = renderers;
         this.store = store;
         this.instances = new LinkedHashMap<UUID, FurnitureInstance>(store.load());
+        this.pendingSynchronization.addAll(this.instances.keySet());
         this.contentRevision = core.getContentRuntime().current().revision();
         rebuildIndex();
         plugin.getServer().getScheduler().runTaskTimer(plugin, new Runnable() {
@@ -257,10 +261,11 @@ public final class FurnitureManager {
 
         try {
             validateDefinitions();
-            synchronizeDefinitions();
+            pendingSynchronization.addAll(instances.keySet());
+            synchronizePendingLoaded();
             contentRevision = currentRevision;
-            plugin.getLogger().info("Synchronized placed furniture to VoxelCore content revision "
-                    + currentRevision + ".");
+            plugin.getLogger().info("Scheduled placed furniture synchronization for VoxelCore content revision "
+                    + currentRevision + "; unloaded furniture will update when its chunk loads.");
         } catch (RuntimeException exception) {
             plugin.getLogger().warning("Unable to synchronize furniture to VoxelCore content revision "
                     + currentRevision + ": " + exception.getMessage());
@@ -268,62 +273,167 @@ public final class FurnitureManager {
     }
 
     /**
-     * Reconciles all persisted furniture against the current VoxelCore definitions.
-     * Placement identity, location and placed yaw remain stable; definition-driven
-     * renderer entities, collision blocks and seats are refreshed.
+     * Startup/content-reload entry point. Orphaned renderers are removed from
+     * already-loaded chunks first, then only furniture whose origin chunk is
+     * loaded is rebuilt. Unloaded furniture remains pending until ChunkLoadEvent.
      */
     public void synchronizeDefinitions() {
+        pendingSynchronization.addAll(instances.keySet());
+        cleanupLoadedOrphans();
+        synchronizePendingLoaded();
+    }
+
+    /**
+     * Repairs a newly loaded chunk. Any VoxelFurniture renderer entity no
+     * longer referenced by furniture.yml is an orphan from an interrupted or
+     * historical replacement and is safe to remove. Pending furniture in this
+     * chunk is then reconciled against the current definition.
+     */
+    public void onChunkLoad(Chunk chunk) {
+        int removedBefore = cleanupOrphans(chunk);
         boolean changed = false;
-        for (FurnitureInstance instance : new ArrayList<FurnitureInstance>(instances.values())) {
-            FurnitureDefinition definition = definition(instance.definitionId()).orElse(null);
-            if (definition == null) {
-                plugin.getLogger().warning("Placed furniture " + instance.id() + " references missing definition "
-                        + instance.definitionId() + "; leaving the existing instance untouched.");
+
+        for (UUID id : new ArrayList<UUID>(pendingSynchronization)) {
+            FurnitureInstance instance = instances.get(id);
+            if (instance == null) {
+                pendingSynchronization.remove(id);
                 continue;
             }
+            if (!isInChunk(instance, chunk)) continue;
 
-            FurnitureStateSelector.Selection selected = state(definition, instance.location(), instance.yaw());
-            FurnitureRenderer replacementRenderer = renderers.select(definition.renderer());
-            List<UUID> replacement = Collections.emptyList();
-
-            try {
-                replacement = replacementRenderer.spawn(instance.location(), selected.yaw(),
-                        core.getItemManager().createRenderItem(selected.model()), definition);
-
-                List<FurnitureBlockPosition> desiredBlocks =
-                        resolveBlocks(definition.blocks(), instance.location(), instance.yaw());
-                List<FurnitureBlockPosition> finalBlocks = instance.blocks();
-                if (!sameBlocks(instance.blocks(), desiredBlocks)) {
-                    if (canMigrateBlocks(instance, desiredBlocks)) {
-                        removeBlocks(instance.location().getWorld(), instance.blocks());
-                        placeBlocks(instance.location().getWorld(), desiredBlocks,
-                                new ArrayList<FurnitureBlockPosition>());
-                        finalBlocks = desiredBlocks;
-                    } else {
-                        plugin.getLogger().warning("Could not apply updated collision blocks to furniture "
-                                + instance.id() + " (" + instance.definitionId()
-                                + ") because the new layout is obstructed; keeping its existing collision blocks.");
-                    }
-                }
-
-                FurnitureInstance updated = new FurnitureInstance(instance.id(), instance.definitionId(),
-                        instance.location(), instance.yaw(), replacementRenderer.type(), replacement, finalBlocks,
-                        selected.model(), selected.yaw());
-
-                unindex(instance);
-                instances.put(updated.id(), updated);
-                index(updated);
-                renderers.select(instance.renderer()).remove(instance.entities());
-                refreshSeat(updated, definition);
+            if (synchronizeInstance(instance)) {
+                pendingSynchronization.remove(id);
                 changed = true;
-            } catch (RuntimeException exception) {
-                replacementRenderer.remove(replacement);
-                plugin.getLogger().warning("Unable to synchronize furniture " + instance.id() + " ("
-                        + instance.definitionId() + "): " + exception.getMessage());
             }
         }
 
         if (changed) save();
+        int removedAfter = cleanupOrphans(chunk);
+        int removed = removedBefore + removedAfter;
+        if (removed > 0) {
+            plugin.getLogger().warning("Removed " + removed + " orphaned VoxelFurniture renderer entit"
+                    + (removed == 1 ? "y" : "ies") + " from chunk " + chunk.getX() + "," + chunk.getZ()
+                    + " in " + chunk.getWorld().getName() + ".");
+        }
+    }
+
+    private void synchronizePendingLoaded() {
+        boolean changed = false;
+        for (UUID id : new ArrayList<UUID>(pendingSynchronization)) {
+            FurnitureInstance instance = instances.get(id);
+            if (instance == null) {
+                pendingSynchronization.remove(id);
+                continue;
+            }
+            if (!isOriginChunkLoaded(instance)) continue;
+
+            if (synchronizeInstance(instance)) {
+                pendingSynchronization.remove(id);
+                changed = true;
+            }
+        }
+        if (changed) save();
+    }
+
+    private boolean synchronizeInstance(FurnitureInstance instance) {
+        FurnitureDefinition definition = definition(instance.definitionId()).orElse(null);
+        if (definition == null) {
+            plugin.getLogger().warning("Placed furniture " + instance.id() + " references missing definition "
+                    + instance.definitionId() + "; leaving the existing instance untouched.");
+            return true;
+        }
+
+        FurnitureStateSelector.Selection selected = state(definition, instance.location(), instance.yaw());
+        FurnitureRenderer replacementRenderer = renderers.select(definition.renderer());
+        List<UUID> replacement = Collections.emptyList();
+
+        try {
+            replacement = replacementRenderer.spawn(instance.location(), selected.yaw(),
+                    core.getItemManager().createRenderItem(selected.model()), definition);
+
+            List<FurnitureBlockPosition> desiredBlocks =
+                    resolveBlocks(definition.blocks(), instance.location(), instance.yaw());
+            List<FurnitureBlockPosition> finalBlocks = instance.blocks();
+            if (!sameBlocks(instance.blocks(), desiredBlocks)) {
+                if (canMigrateBlocks(instance, desiredBlocks)) {
+                    removeBlocks(instance.location().getWorld(), instance.blocks());
+                    placeBlocks(instance.location().getWorld(), desiredBlocks,
+                            new ArrayList<FurnitureBlockPosition>());
+                    finalBlocks = desiredBlocks;
+                } else {
+                    plugin.getLogger().warning("Could not apply updated collision blocks to furniture "
+                            + instance.id() + " (" + instance.definitionId()
+                            + ") because the new layout is obstructed; keeping its existing collision blocks.");
+                }
+            }
+
+            FurnitureInstance updated = new FurnitureInstance(instance.id(), instance.definitionId(),
+                    instance.location(), instance.yaw(), replacementRenderer.type(), replacement, finalBlocks,
+                    selected.model(), selected.yaw());
+
+            // Remove the renderer that furniture.yml currently owns before
+            // replacing its UUIDs. If any historical renderer cannot be found
+            // now, it becomes an unreferenced tagged orphan and the chunk
+            // sweeper removes it as soon as that entity loads.
+            renderers.select(instance.renderer()).remove(instance.entities());
+            unindex(instance);
+            instances.put(updated.id(), updated);
+            index(updated);
+            refreshSeat(updated, definition);
+            return true;
+        } catch (RuntimeException exception) {
+            replacementRenderer.remove(replacement);
+            plugin.getLogger().warning("Unable to synchronize furniture " + instance.id() + " ("
+                    + instance.definitionId() + "): " + exception.getMessage());
+            return false;
+        }
+    }
+
+    private void cleanupLoadedOrphans() {
+        int removed = 0;
+        for (World world : Bukkit.getWorlds()) {
+            for (Chunk chunk : world.getLoadedChunks()) {
+                removed += cleanupOrphans(chunk);
+            }
+        }
+        if (removed > 0) {
+            plugin.getLogger().warning("Removed " + removed
+                    + " orphaned VoxelFurniture renderer entities from currently loaded chunks.");
+        }
+    }
+
+    int cleanupOrphans(Chunk chunk) {
+        Set<UUID> referenced = referencedEntityIds();
+        int removed = 0;
+        for (Entity entity : chunk.getEntities()) {
+            if (!entity.getScoreboardTags().contains("voxelfurniture")) continue;
+            if (referenced.contains(entity.getUniqueId())) continue;
+            entity.remove();
+            removed++;
+        }
+        return removed;
+    }
+
+    private Set<UUID> referencedEntityIds() {
+        Set<UUID> referenced = new HashSet<UUID>();
+        for (FurnitureInstance instance : instances.values()) {
+            referenced.addAll(instance.entities());
+        }
+        return referenced;
+    }
+
+    private static boolean isInChunk(FurnitureInstance instance, Chunk chunk) {
+        Location location = instance.location();
+        return location.getWorld() != null
+                && location.getWorld().getUID().equals(chunk.getWorld().getUID())
+                && (location.getBlockX() >> 4) == chunk.getX()
+                && (location.getBlockZ() >> 4) == chunk.getZ();
+    }
+
+    private static boolean isOriginChunkLoaded(FurnitureInstance instance) {
+        Location location = instance.location();
+        World world = location.getWorld();
+        return world != null && world.isChunkLoaded(location.getBlockX() >> 4, location.getBlockZ() >> 4);
     }
 
     private void refreshSeat(FurnitureInstance instance, FurnitureDefinition definition) {
