@@ -71,6 +71,11 @@ cannot make existing furniture remove unrelated blocks. Managed cells are protec
 entity block changes, and explosions. Left-clicking any managed cell breaks the owning furniture when the player has
 `voxelfurniture.break`; right-clicking it fires the normal `FurnitureInteractEvent`.
 
+On Paper versions that expose pick-item events, middle-clicking either a furniture renderer entity or one of its
+managed collision blocks in Creative mode selects an existing copy of the furniture item, or creates one in the
+selected hotbar slot when the player does not already carry it. Older server APIs continue to load normally without
+this optional behavior.
+
 ## Commands
 
 - `/vf` - show runtime counts.
