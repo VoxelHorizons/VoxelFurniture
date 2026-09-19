@@ -19,7 +19,18 @@ public final class FurnitureStateSelector {
                     ? FurnitureStateRule.rotate(sourceNeighbors, (4 - (Math.round(baseYaw / 90.0f) & 3)) & 3)
                     : sourceNeighbors;
             int match = rule.match(localNeighbors);
-            if (match >= 0 && (chosen == null || rule.specificity() > chosen.specificity())) {
+            if (match < 0) continue;
+
+            int specificity = rule.specificity();
+            int chosenSpecificity = chosen == null ? -1 : chosen.specificity();
+
+            // Prefer the most specific rule first. For equal specificity,
+            // prefer the rule that matched with fewer quarter-turn rotations.
+            // This lets an explicit corner pattern beat an earlier generic
+            // auto-rotating corner rule that only matches after rotation.
+            if (chosen == null
+                    || specificity > chosenSpecificity
+                    || (specificity == chosenSpecificity && match < turns)) {
                 chosen = rule;
                 turns = match;
             }
