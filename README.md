@@ -75,8 +75,9 @@ unchanged and the furniture cannot be sat on.
 ```
 
 The seat offset is local to the furniture and rotates with its placement yaw. `x` and `z` move the seat around
-the furniture model, `y` controls the seated height, and `yaw` adds an optional facing offset. Defaults are
-`x: 0`, `y: -1.1`, `z: 0`, and `yaw: 0`.
+the furniture model, `y` controls the seated height, and `yaw` adds an optional facing offset to both the
+seat anchor and the rider. Use values such as `yaw: 180` when a chair model is authored facing the opposite
+direction. Defaults are `x: 0`, `y: -1.1`, `z: 0`, and `yaw: 0`.
 
 Right-clicking seated furniture first fires `FurnitureInteractEvent`. If another plugin cancels that event,
 VoxelFurniture does not mount the player. Otherwise players with `voxelfurniture.sit` can occupy the seat when it
