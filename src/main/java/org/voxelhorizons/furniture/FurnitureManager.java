@@ -321,6 +321,7 @@ public final class FurnitureManager {
             FurnitureInstance instance = instances.get(id);
             if (instance == null) {
                 pendingSynchronization.remove(id);
+                forcedSynchronization.remove(id);
                 continue;
             }
             if (!isInChunk(instance, chunk)) continue;
@@ -349,6 +350,7 @@ public final class FurnitureManager {
             FurnitureInstance instance = instances.get(id);
             if (instance == null) {
                 pendingSynchronization.remove(id);
+                forcedSynchronization.remove(id);
                 continue;
             }
             if (!isOriginChunkLoaded(instance)) continue;
@@ -648,6 +650,7 @@ public final class FurnitureManager {
             index(updated);
             renderer.remove(instance.entities());
             save();
+            cleanupOriginChunk(instance.location());
         } catch (RuntimeException exception) {
             Bukkit.getLogger().warning("Unable to update furniture state " + instance.id() + ": " + exception.getMessage());
         }
