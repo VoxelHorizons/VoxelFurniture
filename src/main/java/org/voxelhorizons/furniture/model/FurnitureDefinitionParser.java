@@ -69,9 +69,8 @@ public final class FurnitureDefinitionParser {
                 ? blocks(item, map.get("blocks")) : Collections.<FurnitureBlockDefinition>emptyList();
         List<FurnitureStateRule> states = map.containsKey("blockstates")
                 ? states(item, map.get("blockstates")) : Collections.<FurnitureStateRule>emptyList();
-        if (!states.isEmpty() && (rotationStep != 90.0f || blocks.size() != 1
-                || blocks.get(0).x() != 0 || blocks.get(0).y() != 0 || blocks.get(0).z() != 0)) {
-            throw invalid(item, "blockstates require rotation_step: 90 and a single collision block at 0,0,0");
+        if (!states.isEmpty() && rotationStep != 90.0f) {
+            throw invalid(item, "blockstates require rotation_step: 90");
         }
         return Optional.of(new FurnitureDefinition(item.id(), modelItem, drop, renderer, width, height, scale,
                 rotationStep, x, y, z, blocks, states));
