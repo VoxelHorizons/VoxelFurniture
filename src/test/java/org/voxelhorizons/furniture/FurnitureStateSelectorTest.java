@@ -41,6 +41,17 @@ public class FurnitureStateSelectorTest {
         assertEquals(id("chair"), FurnitureStateSelector.select(chair, 2, 0, 0).model());
     }
 
+    @Test public void exactCornerRuleBeatsEarlierRotatedCornerRuleAtEqualSpecificity() {
+        FurnitureDefinition chair = new FurnitureDefinition(id("chair"), id("chair"), id("chair"),
+                FurnitureRendererType.AUTO, 1, 1, 1, 90, 0, 0, 0, Collections.emptyList(), Arrays.asList(
+                // This first rule can rotate and therefore also matches north+east after two turns.
+                new FurnitureStateRule(12, 3, id("rotating"), 0, true, true, false),
+                // Explicit north+east rule should win because it matches without rotation.
+                new FurnitureStateRule(3, 12, id("exact"), 0, false, true, false)));
+
+        assertEquals(id("exact"), FurnitureStateSelector.select(chair, 3, 0, 0).model());
+    }
+
     @Test public void relativeRulesCanCountPerpendicularNeighborsWhenAlignedOnlyIsDisabled() {
         FurnitureDefinition chair = new FurnitureDefinition(id("chair"), id("chair"), id("chair"),
                 FurnitureRendererType.AUTO, 1, 1, 1, 90, 0, 0, 0, Collections.emptyList(), Arrays.asList(
