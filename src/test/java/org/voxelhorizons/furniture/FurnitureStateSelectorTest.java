@@ -41,6 +41,22 @@ public class FurnitureStateSelectorTest {
         assertEquals(id("chair"), FurnitureStateSelector.select(chair, 2, 0, 0).model());
     }
 
+    @Test public void relativeRulesCanCountPerpendicularNeighborsWhenAlignedOnlyIsDisabled() {
+        FurnitureDefinition chair = new FurnitureDefinition(id("chair"), id("chair"), id("chair"),
+                FurnitureRendererType.AUTO, 1, 1, 1, 90, 0, 0, 0, Collections.emptyList(), Arrays.asList(
+                new FurnitureStateRule(10, 5, id("middle"), 0, false, true, false),
+                new FurnitureStateRule(12, 3, id("inner"), 0, false, true, false),
+                new FurnitureStateRule(9, 6, id("outer"), 0, false, true, false)));
+
+        // Both west/east neighbours exist, but only the east one shares this chair's yaw.
+        assertEquals(id("middle"), FurnitureStateSelector.select(chair, 10, 2, 0).model());
+
+        // Local west+south and west+north can now be distinguished instead of
+        // being collapsed into one auto-rotated world-space corner.
+        assertEquals(id("inner"), FurnitureStateSelector.select(chair, 12, 8, 0).model());
+        assertEquals(id("outer"), FurnitureStateSelector.select(chair, 9, 8, 0).model());
+    }
+
     private static FurnitureDefinition table() {
         return new FurnitureDefinition(id("table"), id("table"), id("table"), FurnitureRendererType.AUTO,
                 1, 1, 1, 90, 0, 0, 0, Collections.emptyList(), Arrays.asList(
