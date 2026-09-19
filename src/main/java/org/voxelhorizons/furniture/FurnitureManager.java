@@ -25,10 +25,14 @@ import org.voxelhorizons.furniture.model.FurnitureInstance;
 import org.voxelhorizons.furniture.model.FurnitureSeatDefinition;
 import org.voxelhorizons.furniture.model.FurnitureStateSelector;
 import org.voxelhorizons.furniture.model.FurnitureStateRule;
+import org.voxelhorizons.furniture.render.EntitySupport;
 import org.voxelhorizons.furniture.render.FurnitureRenderer;
 import org.voxelhorizons.furniture.render.FurnitureRendererSelector;
 import org.voxelhorizons.furniture.store.FurnitureStore;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -52,6 +56,7 @@ public final class FurnitureManager {
     private final Map<BlockKey, UUID> blockIndex = new LinkedHashMap<BlockKey, UUID>();
     private final Map<BlockKey, UUID> originIndex = new LinkedHashMap<BlockKey, UUID>();
     private final Set<UUID> pendingSynchronization = new HashSet<UUID>();
+    private final Set<UUID> forcedSynchronization = new HashSet<UUID>();
     private long contentRevision;
 
     public FurnitureManager(Plugin plugin, VoxelCore core, FurnitureDefinitionParser definitions,
@@ -115,6 +120,7 @@ public final class FurnitureManager {
         FurnitureStateSelector.Selection state = state(definition, location, yaw);
         ItemStack modelItem = core.getItemManager().createRenderItem(state.model());
         FurnitureRenderer renderer = renderers.select(definition.renderer());
+        String signature = renderSignature(definition, state, renderer.type(), collisionBlocks, modelItem);
         List<FurnitureBlockPosition> placed = new ArrayList<FurnitureBlockPosition>();
         List<UUID> entities = Collections.emptyList();
         FurnitureInstance instance = null;
@@ -122,7 +128,7 @@ public final class FurnitureManager {
             placeBlocks(location.getWorld(), collisionBlocks, placed);
             entities = renderer.spawn(location, state.yaw(), modelItem, definition);
             instance = new FurnitureInstance(UUID.randomUUID(), definition.itemId(), location, yaw,
-                    renderer.type(), entities, collisionBlocks, state.model(), state.yaw());
+                    renderer.type(), entities, collisionBlocks, state.model(), state.yaw(), signature);
             instances.put(instance.id(), instance);
             index(instance);
             save();
@@ -148,6 +154,8 @@ public final class FurnitureManager {
         renderers.select(instance.renderer()).remove(instance.entities());
         removeBlocks(instance.location().getWorld(), instance.blocks());
         instances.remove(instance.id());
+        pendingSynchronization.remove(instance.id());
+        forcedSynchronization.remove(instance.id());
         unindex(instance);
         refreshAround(instance.location());
         if (definition != null && player.getGameMode() != GameMode.CREATIVE) {
@@ -161,6 +169,8 @@ public final class FurnitureManager {
     public boolean remove(UUID instanceId, boolean drop) {
         FurnitureInstance instance = instances.remove(instanceId);
         if (instance == null) return false;
+        pendingSynchronization.remove(instance.id());
+        forcedSynchronization.remove(instance.id());
         removeSeat(instance.id());
         renderers.select(instance.renderer()).remove(instance.entities());
         removeBlocks(instance.location().getWorld(), instance.blocks());
@@ -262,6 +272,7 @@ public final class FurnitureManager {
         try {
             validateDefinitions();
             pendingSynchronization.addAll(instances.keySet());
+            forcedSynchronization.addAll(instances.keySet());
             synchronizePendingLoaded();
             contentRevision = currentRevision;
             plugin.getLogger().info("Scheduled placed furniture synchronization for VoxelCore content revision "
@@ -289,7 +300,17 @@ public final class FurnitureManager {
      * historical replacement and is safe to remove. Pending furniture in this
      * chunk is then reconciled against the current definition.
      */
-    public void onChunkLoad(Chunk chunk) {
+    public void onChunkLoad(final Chunk chunk) {
+        plugin.getServer().getScheduler().runTask(plugin, new Runnable() {
+            @Override public void run() {
+                if (chunk.getWorld().isChunkLoaded(chunk.getX(), chunk.getZ())) {
+                    repairChunk(chunk);
+                }
+            }
+        });
+    }
+
+    private void repairChunk(Chunk chunk) {
         int removedBefore = cleanupOrphans(chunk);
         boolean changed = false;
 
@@ -301,8 +322,10 @@ public final class FurnitureManager {
             }
             if (!isInChunk(instance, chunk)) continue;
 
-            if (synchronizeInstance(instance)) {
+            boolean force = forcedSynchronization.contains(id);
+            if (synchronizeInstance(instance, force)) {
                 pendingSynchronization.remove(id);
+                forcedSynchronization.remove(id);
                 changed = true;
             }
         }
@@ -327,15 +350,17 @@ public final class FurnitureManager {
             }
             if (!isOriginChunkLoaded(instance)) continue;
 
-            if (synchronizeInstance(instance)) {
+            boolean force = forcedSynchronization.contains(id);
+            if (synchronizeInstance(instance, force)) {
                 pendingSynchronization.remove(id);
+                forcedSynchronization.remove(id);
                 changed = true;
             }
         }
         if (changed) save();
     }
 
-    private boolean synchronizeInstance(FurnitureInstance instance) {
+    private boolean synchronizeInstance(FurnitureInstance instance, boolean force) {
         FurnitureDefinition definition = definition(instance.definitionId()).orElse(null);
         if (definition == null) {
             plugin.getLogger().warning("Placed furniture " + instance.id() + " references missing definition "
@@ -345,14 +370,21 @@ public final class FurnitureManager {
 
         FurnitureStateSelector.Selection selected = state(definition, instance.location(), instance.yaw());
         FurnitureRenderer replacementRenderer = renderers.select(definition.renderer());
+        List<FurnitureBlockPosition> desiredBlocks =
+                resolveBlocks(definition.blocks(), instance.location(), instance.yaw());
+        ItemStack modelItem = core.getItemManager().createRenderItem(selected.model());
+        String signature = renderSignature(definition, selected, replacementRenderer.type(), desiredBlocks, modelItem);
+
+        if (!force && signature.equals(instance.renderSignature()) && rendererEntitiesPresent(instance)) {
+            refreshSeat(instance, definition);
+            return true;
+        }
+
         List<UUID> replacement = Collections.emptyList();
 
         try {
-            replacement = replacementRenderer.spawn(instance.location(), selected.yaw(),
-                    core.getItemManager().createRenderItem(selected.model()), definition);
+            replacement = replacementRenderer.spawn(instance.location(), selected.yaw(), modelItem, definition);
 
-            List<FurnitureBlockPosition> desiredBlocks =
-                    resolveBlocks(definition.blocks(), instance.location(), instance.yaw());
             List<FurnitureBlockPosition> finalBlocks = instance.blocks();
             if (!sameBlocks(instance.blocks(), desiredBlocks)) {
                 if (canMigrateBlocks(instance, desiredBlocks)) {
@@ -369,7 +401,7 @@ public final class FurnitureManager {
 
             FurnitureInstance updated = new FurnitureInstance(instance.id(), instance.definitionId(),
                     instance.location(), instance.yaw(), replacementRenderer.type(), replacement, finalBlocks,
-                    selected.model(), selected.yaw());
+                    selected.model(), selected.yaw(), signature);
 
             // Remove the renderer that furniture.yml currently owns before
             // replacing its UUIDs. If any historical renderer cannot be found
@@ -386,6 +418,51 @@ public final class FurnitureManager {
             plugin.getLogger().warning("Unable to synchronize furniture " + instance.id() + " ("
                     + instance.definitionId() + "): " + exception.getMessage());
             return false;
+        }
+    }
+
+    private boolean rendererEntitiesPresent(FurnitureInstance instance) {
+        if (instance.entities().isEmpty()) return false;
+        for (UUID id : instance.entities()) {
+            Entity entity = EntitySupport.find(id);
+            if (entity == null || !entity.getScoreboardTags().contains("voxelfurniture")) return false;
+        }
+        return true;
+    }
+
+    private String renderSignature(FurnitureDefinition definition, FurnitureStateSelector.Selection selected,
+                                   org.voxelhorizons.furniture.model.FurnitureRendererType renderer,
+                                   List<FurnitureBlockPosition> blocks, ItemStack modelItem) {
+        StringBuilder value = new StringBuilder();
+        value.append(renderer.name()).append('|')
+                .append(selected.model()).append('|').append(selected.yaw()).append('|')
+                .append(definition.width()).append('|').append(definition.height()).append('|')
+                .append(definition.scaleX()).append('|').append(definition.scaleY()).append('|')
+                .append(definition.scaleZ()).append('|').append(definition.viewDistance()).append('|')
+                .append(definition.offsetX()).append('|').append(definition.offsetY()).append('|')
+                .append(definition.offsetZ()).append('|')
+                .append(modelItem.serialize().toString());
+
+        for (FurnitureBlockPosition block : blocks) {
+            value.append('|').append(block.x()).append(',').append(block.y()).append(',').append(block.z())
+                    .append(',').append(block.material().name());
+        }
+
+        FurnitureSeatDefinition seat = definition.seat();
+        if (seat != null) {
+            value.append("|seat:")
+                    .append(seat.offsetX()).append(',').append(seat.offsetY()).append(',')
+                    .append(seat.offsetZ()).append(',').append(seat.yawOffset());
+        }
+
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(value.toString().getBytes(StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder(digest.length * 2);
+            for (byte item : digest) hex.append(String.format("%02x", item & 0xff));
+            return hex.toString();
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is unavailable", exception);
         }
     }
 
@@ -541,10 +618,12 @@ public final class FurnitureManager {
         if (selected.model().equals(instance.renderedModel()) && selected.yaw() == instance.renderedYaw()) return;
         FurnitureRenderer renderer = renderers.select(instance.renderer());
         try {
-            List<UUID> replacement = renderer.spawn(instance.location(), selected.yaw(),
-                    core.getItemManager().createRenderItem(selected.model()), definition);
+            ItemStack modelItem = core.getItemManager().createRenderItem(selected.model());
+            List<UUID> replacement = renderer.spawn(instance.location(), selected.yaw(), modelItem, definition);
+            String signature = renderSignature(definition, selected, instance.renderer(), instance.blocks(), modelItem);
             FurnitureInstance updated = new FurnitureInstance(instance.id(), instance.definitionId(), instance.location(),
-                    instance.yaw(), instance.renderer(), replacement, instance.blocks(), selected.model(), selected.yaw());
+                    instance.yaw(), instance.renderer(), replacement, instance.blocks(), selected.model(), selected.yaw(),
+                    signature);
             unindex(instance);
             instances.put(updated.id(), updated);
             index(updated);
