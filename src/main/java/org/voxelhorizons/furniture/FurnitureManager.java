@@ -45,6 +45,8 @@ import java.util.HashSet;
 import java.util.Set;
 
 public final class FurnitureManager {
+    private static final String RENDER_SIGNATURE_VERSION = "local-offset-v2";
+
     private final VoxelCore core;
     private final FurnitureDefinitionParser definitions;
     private final FurnitureRendererSelector renderers;
@@ -443,7 +445,8 @@ public final class FurnitureManager {
                                    org.voxelhorizons.furniture.model.FurnitureRendererType renderer,
                                    List<FurnitureBlockPosition> blocks, ItemStack modelItem) {
         StringBuilder value = new StringBuilder();
-        value.append(renderer.name()).append('|')
+        value.append(RENDER_SIGNATURE_VERSION).append('|')
+                .append(renderer.name()).append('|')
                 .append(selected.model()).append('|').append(selected.yaw()).append('|')
                 .append(definition.width()).append('|').append(definition.height()).append('|')
                 .append(definition.scaleX()).append('|').append(definition.scaleY()).append('|')
