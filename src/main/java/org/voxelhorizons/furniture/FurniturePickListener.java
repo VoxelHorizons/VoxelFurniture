@@ -58,6 +58,7 @@ public final class FurniturePickListener implements Listener {
             plugin.getServer().getPluginManager().registerEvent((Class<? extends Event>) rawEvent, this,
                     EventPriority.HIGHEST, new EventExecutor() {
                         @Override public void execute(Listener listener, Event event) throws EventException {
+                            if (!rawEvent.isInstance(event)) return;
                             try {
                                 Player player = (Player) getPlayer.invoke(event);
                                 Object target = getTarget.invoke(event);
