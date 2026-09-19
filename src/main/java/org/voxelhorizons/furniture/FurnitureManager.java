@@ -196,6 +196,14 @@ public final class FurnitureManager {
             stand.remove();
             return false;
         }
+
+        // Vehicles do not force a player's camera/body yaw to match the mount.
+        // Align the rider explicitly to the resolved seat yaw so seat.yaw can
+        // correct furniture models authored facing a different direction.
+        Location playerLocation = player.getLocation();
+        playerLocation.setYaw(location.getYaw());
+        player.teleport(playerLocation);
+
         seats.put(instance.id(), stand);
         return true;
     }
