@@ -200,7 +200,7 @@ public final class FurnitureManager {
         return true;
     }
 
-    private static Location seatLocation(FurnitureInstance instance, FurnitureSeatDefinition seat) {
+    static Location seatLocation(FurnitureInstance instance, FurnitureSeatDefinition seat) {
         Location origin = instance.location();
         double radians = Math.toRadians(instance.yaw());
         double cosine = Math.cos(radians);
