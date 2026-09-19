@@ -27,3 +27,5 @@ permissions:
     default: op
   voxelfurniture.admin.remove:
     default: op
+  voxelfurniture.admin.cleanup:
+    default: op
