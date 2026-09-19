@@ -76,6 +76,63 @@ managed collision blocks in Creative mode selects an existing copy of the furnit
 selected hotbar slot when the player does not already carry it. Older server APIs continue to load normally without
 this optional behavior.
 
+### Neighbor-dependent models
+
+`blockstates` on the concrete furniture definition switches the *rendered model only*. The placed furniture,
+its drop and Creative middle-click remain the concrete `oak_table` item. Variant items can be `abstract: true`
+when they have a material and `render.model`; VoxelCore allocates their models but still rejects giving them.
+This feature requires VoxelCore with abstract render allocations and `createRenderItem` support.
+
+```yaml
+items:
+  oak_table:
+    material: OAK_PLANKS
+    display_name: "&fOak Table"
+    render:
+      model: voxel:furniture/basic/oak_table
+    properties:
+      furniture:
+        renderer: auto
+        rotation_step: 90
+        blocks:
+          - {x: 0, y: 0, z: 0}
+        blockstates:
+          - neighbors: [north, east, south, west]
+            model_item: voxel:oak_table_middle
+          - neighbors: [north, east, south]
+            model_item: voxel:oak_table_middle
+          - neighbors: [north, east]
+            model_item: voxel:oak_table_corner
+          - neighbors: [north, south]
+            model_item: voxel:oak_table_middle
+          - neighbors: [north]
+            model_item: voxel:oak_table_end
+            rotation: 0
+  oak_table_end:
+    extends: oak_table
+    abstract: true
+    render:
+      model: voxel:furniture/basic/oak_table_side
+  oak_table_corner:
+    extends: oak_table
+    abstract: true
+    render:
+      model: voxel:furniture/basic/oak_table_corner
+  oak_table_middle:
+    extends: oak_table
+    abstract: true
+    render:
+      model: voxel:furniture/basic/oak_table_middle
+```
+
+Directions are world north/east/south/west. Rules are tried most-specific-first (ties use YAML order);
+each pattern rotates through 90-degree turns by default. `rotate: false` fixes the specified direction;
+`rotation` adds degrees to the matched yaw to correct a model authored facing another direction.
+`absent: [direction, ...]` can prevent a rule matching extra neighbors. When no rule matches,
+the base item's model and original placement yaw are retained. Only directly adjacent furniture
+of the same concrete ID at the same height connects. State changes never alter collision cells.
+Blockstates require `rotation_step: 90` and exactly one collision block at the origin.
+
 ## Commands
 
 - `/vf` - show runtime counts.

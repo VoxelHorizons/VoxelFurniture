@@ -16,10 +16,18 @@ public final class FurnitureInstance {
     private final FurnitureRendererType renderer;
     private final List<UUID> entities;
     private final List<FurnitureBlockPosition> blocks;
+    private final ContentID renderedModel;
+    private final float renderedYaw;
 
     public FurnitureInstance(UUID id, ContentID definitionId, Location location, float yaw,
                              FurnitureRendererType renderer, List<UUID> entities,
                              List<FurnitureBlockPosition> blocks) {
+        this(id, definitionId, location, yaw, renderer, entities, blocks, null, Float.NaN);
+    }
+
+    public FurnitureInstance(UUID id, ContentID definitionId, Location location, float yaw,
+                             FurnitureRendererType renderer, List<UUID> entities,
+                             List<FurnitureBlockPosition> blocks, ContentID renderedModel, float renderedYaw) {
         this.id = id;
         this.definitionId = definitionId;
         this.location = location.clone();
@@ -27,6 +35,8 @@ public final class FurnitureInstance {
         this.renderer = renderer;
         this.entities = Collections.unmodifiableList(new ArrayList<UUID>(entities));
         this.blocks = Collections.unmodifiableList(new ArrayList<FurnitureBlockPosition>(blocks));
+        this.renderedModel = renderedModel;
+        this.renderedYaw = renderedYaw;
     }
 
     public UUID id() { return id; }
@@ -36,4 +46,6 @@ public final class FurnitureInstance {
     public FurnitureRendererType renderer() { return renderer; }
     public List<UUID> entities() { return entities; }
     public List<FurnitureBlockPosition> blocks() { return blocks; }
+    public ContentID renderedModel() { return renderedModel; }
+    public float renderedYaw() { return renderedYaw; }
 }
