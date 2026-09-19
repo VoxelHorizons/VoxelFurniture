@@ -35,6 +35,7 @@ public final class VoxelFurniture extends JavaPlugin {
             furnitureManager.validateDefinitions();
             getServer().getPluginManager().registerEvents(new FurnitureListener(core, furnitureManager,
                     getConfig().getBoolean("protect-entities", true)), this);
+            new FurniturePickListener(this, core, furnitureManager).register();
 
             FurnitureCommand executor = new FurnitureCommand(core, furnitureManager);
             PluginCommand command = getCommand("voxelfurniture");
