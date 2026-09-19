@@ -47,14 +47,18 @@ public final class FurnitureListener implements Listener {
         if (event.getAction() != org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK || event.getClickedBlock() == null) return;
         if (furniture.byBlock(event.getClickedBlock()).isPresent()) return;
         if (event.getHand() != null && event.getHand() != EquipmentSlot.HAND) return;
-        if (event.getBlockFace() != BlockFace.UP) return;
         Player player = event.getPlayer();
-        if (!player.hasPermission("voxelfurniture.place")) return;
         ItemStack held = player.getInventory().getItemInMainHand();
         Optional<ContentID> id = core.getItemManager().identify(held);
         if (!id.isPresent()) return;
         Optional<FurnitureDefinition> definition = furniture.definition(id.get());
         if (!definition.isPresent()) return;
+
+        // A recognized furniture item owns this interaction. Always cancel the vanilla
+        // item use so denied/failed furniture placement can never place its carrier block.
+        event.setCancelled(true);
+        if (!player.hasPermission("voxelfurniture.place")) return;
+        if (!definition.get().placement().allows(event.getBlockFace())) return;
 
         Block target = event.getClickedBlock().getRelative(event.getBlockFace());
         if (target.getType() != Material.AIR) return;
