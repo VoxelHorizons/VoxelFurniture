@@ -287,9 +287,11 @@ items:
       model: voxel:furniture/basic/oak_table_middle
 ```
 
-Directions are world north/east/south/west. Rules are tried most-specific-first (ties use YAML order);
-each pattern rotates through 90-degree turns by default. `rotate: false` fixes the specified direction;
-`rotation` adds degrees to the matched yaw to correct a model authored facing another direction.
+Directions are world north/east/south/west. Rules are tried most-specific-first. For equally-specific
+rules, an exact/unrotated pattern match is preferred over a rule that only matches after one or more quarter-turns;
+remaining ties use YAML order. Each pattern rotates through 90-degree turns by default. Use `rotate: false` for
+explicit inner/outer corner patterns that must represent only the directions written in YAML. `rotation` changes
+the selected model yaw after a rule matches; it does not disable pattern rotation.
 For directional furniture such as benches, set `relative: true` and `rotate: false` on each rule.
 Directions then follow the furniture's snapped placement yaw (north at yaw 0). By default, relative rules count only
 neighbors of the same concrete item ID **and facing**, preserving the original bench behavior.
