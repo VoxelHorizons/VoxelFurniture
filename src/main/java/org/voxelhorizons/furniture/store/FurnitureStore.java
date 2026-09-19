@@ -51,7 +51,9 @@ public final class FurnitureStore {
             }
             result.put(id, new FurnitureInstance(id, ContentID.parse(section.getString("definition"), "minecraft"),
                     location, (float) section.getDouble("yaw"),
-                    FurnitureRendererType.valueOf(section.getString("renderer")), entities, blocks));
+                    FurnitureRendererType.valueOf(section.getString("renderer")), entities, blocks,
+                    section.contains("rendered_model") ? ContentID.parse(section.getString("rendered_model"), "minecraft") : null,
+                    section.contains("rendered_yaw") ? (float) section.getDouble("rendered_yaw") : Float.NaN));
         }
         return result;
     }
@@ -68,6 +70,8 @@ public final class FurnitureStore {
             yaml.set(path + ".y", location.getY());
             yaml.set(path + ".z", location.getZ());
             yaml.set(path + ".yaw", instance.yaw());
+            if (instance.renderedModel() != null) yaml.set(path + ".rendered_model", instance.renderedModel().toString());
+            if (!Float.isNaN(instance.renderedYaw())) yaml.set(path + ".rendered_yaw", instance.renderedYaw());
             yaml.set(path + ".renderer", instance.renderer().name());
             List<String> entities = new ArrayList<String>();
             for (UUID id : instance.entities()) entities.add(id.toString());

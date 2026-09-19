@@ -19,11 +19,20 @@ public final class FurnitureDefinition {
     private final double offsetY;
     private final double offsetZ;
     private final List<FurnitureBlockDefinition> blocks;
+    private final List<FurnitureStateRule> states;
 
     public FurnitureDefinition(ContentID itemId, ContentID modelItemId, ContentID dropItemId,
                                FurnitureRendererType renderer, float width, float height, float scale,
                                float rotationStep, double offsetX, double offsetY, double offsetZ,
                                List<FurnitureBlockDefinition> blocks) {
+        this(itemId, modelItemId, dropItemId, renderer, width, height, scale, rotationStep,
+                offsetX, offsetY, offsetZ, blocks, Collections.<FurnitureStateRule>emptyList());
+    }
+
+    public FurnitureDefinition(ContentID itemId, ContentID modelItemId, ContentID dropItemId,
+                               FurnitureRendererType renderer, float width, float height, float scale,
+                               float rotationStep, double offsetX, double offsetY, double offsetZ,
+                               List<FurnitureBlockDefinition> blocks, List<FurnitureStateRule> states) {
         this.itemId = itemId;
         this.modelItemId = modelItemId;
         this.dropItemId = dropItemId;
@@ -36,6 +45,7 @@ public final class FurnitureDefinition {
         this.offsetY = offsetY;
         this.offsetZ = offsetZ;
         this.blocks = Collections.unmodifiableList(new ArrayList<FurnitureBlockDefinition>(blocks));
+        this.states = Collections.unmodifiableList(new ArrayList<FurnitureStateRule>(states));
     }
 
     public ContentID itemId() { return itemId; }
@@ -50,4 +60,5 @@ public final class FurnitureDefinition {
     public double offsetY() { return offsetY; }
     public double offsetZ() { return offsetZ; }
     public List<FurnitureBlockDefinition> blocks() { return blocks; }
+    public List<FurnitureStateRule> states() { return states; }
 }
