@@ -215,8 +215,11 @@ public final class FurnitureManager {
     private void cleanupSeats() {
         for (Map.Entry<UUID, ArmorStand> entry : new ArrayList<Map.Entry<UUID, ArmorStand>>(seats.entrySet())) {
             ArmorStand stand = entry.getValue();
+            FurnitureInstance instance = instances.get(entry.getKey());
+            FurnitureDefinition definition = instance == null ? null
+                    : definition(instance.definitionId()).orElse(null);
             if (stand == null || !stand.isValid() || stand.getPassengers().isEmpty()
-                    || !instances.containsKey(entry.getKey())) {
+                    || definition == null || definition.seat() == null) {
                 if (stand != null && stand.isValid()) stand.remove();
                 seats.remove(entry.getKey());
             }
