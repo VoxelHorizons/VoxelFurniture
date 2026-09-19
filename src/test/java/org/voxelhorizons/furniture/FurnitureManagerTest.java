@@ -10,6 +10,8 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class FurnitureManagerTest {
     @Test public void snapsPositiveYaw() {
@@ -22,6 +24,13 @@ public class FurnitureManagerTest {
 
     @Test public void wrapsFullRotation() {
         assertEquals(0.0F, FurnitureManager.snapYaw(359.0F, 45.0F), 0.001F);
+    }
+
+    @Test public void treatsAirAndNonSolidMaterialsAsReplaceable() {
+        assertTrue(FurnitureManager.isReplaceable(Material.AIR));
+        assertTrue(FurnitureManager.isReplaceable(Material.WATER));
+        assertTrue(FurnitureManager.isReplaceable(Material.LAVA));
+        assertFalse(FurnitureManager.isReplaceable(Material.STONE));
     }
 
     @Test public void rotatesCollisionBlocksAroundPlacementOrigin() {
