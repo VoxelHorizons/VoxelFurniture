@@ -33,6 +33,11 @@ items:
         scale: 1.0
         rotation_step: 45
         placement: TOP
+        seat:
+          x: 0.0
+          y: -1.1
+          z: 0.0
+          yaw: 0.0
         offset:
           x: 0.0
           y: 0.0
@@ -55,6 +60,29 @@ backwards compatibility:
 Once an item is recognized as furniture, VoxelFurniture cancels the vanilla item interaction even when placement is
 not allowed or cannot complete. This prevents the item's carrier material from being placed accidentally when, for
 example, a `TOP`-only chair is right-clicked against the side of a block.
+
+### Seats
+
+Furniture can opt into right-click seating with a `seat` mapping. If `seat` is absent, interaction behavior is
+unchanged and the furniture cannot be sat on.
+
+```yaml
+        seat:
+          x: 0.0
+          y: -1.1
+          z: 0.0
+          yaw: 0.0
+```
+
+The seat offset is local to the furniture and rotates with its placement yaw. `x` and `z` move the seat around
+the furniture model, `y` controls the seated height, and `yaw` adds an optional facing offset. Defaults are
+`x: 0`, `y: -1.1`, `z: 0`, and `yaw: 0`.
+
+Right-clicking seated furniture first fires `FurnitureInteractEvent`. If another plugin cancels that event,
+VoxelFurniture does not mount the player. Otherwise players with `voxelfurniture.sit` can occupy the seat when it
+is free. Seats use transient invisible marker armor stands and are not written to `furniture.yml`. Empty seat
+anchors are removed automatically, and active seats are removed when the furniture is broken, administratively
+removed, or VoxelFurniture shuts down.
 
 ### Collision blocks
 

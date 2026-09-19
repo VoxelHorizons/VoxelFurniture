@@ -6,7 +6,9 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Block;
+import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Player;
+import org.bukkit.plugin.Plugin;
 import org.bukkit.inventory.ItemStack;
 import org.voxelhorizons.VoxelCore;
 import org.voxelhorizons.content.ContentID;
@@ -18,6 +20,7 @@ import org.voxelhorizons.furniture.model.FurnitureBlockDefinition;
 import org.voxelhorizons.furniture.model.FurnitureBlockPosition;
 import org.voxelhorizons.furniture.model.FurnitureDefinitionParser;
 import org.voxelhorizons.furniture.model.FurnitureInstance;
+import org.voxelhorizons.furniture.model.FurnitureSeatDefinition;
 import org.voxelhorizons.furniture.model.FurnitureStateSelector;
 import org.voxelhorizons.furniture.model.FurnitureStateRule;
 import org.voxelhorizons.furniture.render.FurnitureRenderer;
@@ -39,20 +42,26 @@ public final class FurnitureManager {
     private final VoxelCore core;
     private final FurnitureDefinitionParser definitions;
     private final FurnitureRendererSelector renderers;
+    private final Plugin plugin;
     private final FurnitureStore store;
     private final Map<UUID, FurnitureInstance> instances;
+    private final Map<UUID, ArmorStand> seats = new LinkedHashMap<UUID, ArmorStand>();
     private final Map<UUID, UUID> entityIndex = new LinkedHashMap<UUID, UUID>();
     private final Map<BlockKey, UUID> blockIndex = new LinkedHashMap<BlockKey, UUID>();
     private final Map<BlockKey, UUID> originIndex = new LinkedHashMap<BlockKey, UUID>();
 
-    public FurnitureManager(VoxelCore core, FurnitureDefinitionParser definitions,
+    public FurnitureManager(Plugin plugin, VoxelCore core, FurnitureDefinitionParser definitions,
                             FurnitureRendererSelector renderers, FurnitureStore store) {
+        this.plugin = plugin;
         this.core = core;
         this.definitions = definitions;
         this.renderers = renderers;
         this.store = store;
         this.instances = new LinkedHashMap<UUID, FurnitureInstance>(store.load());
         rebuildIndex();
+        plugin.getServer().getScheduler().runTaskTimer(plugin, new Runnable() {
+            @Override public void run() { cleanupSeats(); }
+        }, 20L, 20L);
     }
 
     public Optional<FurnitureDefinition> definition(ContentID id) {
@@ -126,6 +135,7 @@ public final class FurnitureManager {
         Bukkit.getPluginManager().callEvent(event);
         if (event.isCancelled()) return false;
         FurnitureDefinition definition = definition(instance.definitionId()).orElse(null);
+        removeSeat(instance.id());
         renderers.select(instance.renderer()).remove(instance.entities());
         removeBlocks(instance.location().getWorld(), instance.blocks());
         instances.remove(instance.id());
@@ -142,6 +152,7 @@ public final class FurnitureManager {
     public boolean remove(UUID instanceId, boolean drop) {
         FurnitureInstance instance = instances.remove(instanceId);
         if (instance == null) return false;
+        removeSeat(instance.id());
         renderers.select(instance.renderer()).remove(instance.entities());
         removeBlocks(instance.location().getWorld(), instance.blocks());
         unindex(instance);
@@ -153,6 +164,78 @@ public final class FurnitureManager {
         }
         save();
         return true;
+    }
+
+    public boolean sit(Player player, FurnitureInstance instance) {
+        if (player == null || instance == null || player.getVehicle() != null) return false;
+        FurnitureDefinition definition = definition(instance.definitionId()).orElse(null);
+        if (definition == null || definition.seat() == null) return false;
+
+        ArmorStand existing = seats.get(instance.id());
+        if (existing != null) {
+            if (existing.isValid() && !existing.getPassengers().isEmpty()) return false;
+            existing.remove();
+            seats.remove(instance.id());
+        }
+
+        FurnitureSeatDefinition seat = definition.seat();
+        Location location = seatLocation(instance, seat);
+        ArmorStand stand = location.getWorld().spawn(location, ArmorStand.class);
+        stand.setVisible(false);
+        stand.setGravity(false);
+        stand.setBasePlate(false);
+        stand.setArms(false);
+        stand.setSmall(true);
+        stand.setMarker(true);
+        stand.setInvulnerable(true);
+        stand.setCollidable(false);
+        stand.setSilent(true);
+        stand.addScoreboardTag("voxelfurniture-seat");
+
+        if (!stand.addPassenger(player)) {
+            stand.remove();
+            return false;
+        }
+        seats.put(instance.id(), stand);
+        return true;
+    }
+
+    static Location seatLocation(FurnitureInstance instance, FurnitureSeatDefinition seat) {
+        Location origin = instance.location();
+        double radians = Math.toRadians(instance.yaw());
+        double cosine = Math.cos(radians);
+        double sine = Math.sin(radians);
+        double x = seat.offsetX() * cosine - seat.offsetZ() * sine;
+        double z = seat.offsetX() * sine + seat.offsetZ() * cosine;
+        Location location = origin.clone().add(x, seat.offsetY(), z);
+        location.setYaw(instance.yaw() + seat.yawOffset());
+        return location;
+    }
+
+    private void cleanupSeats() {
+        for (Map.Entry<UUID, ArmorStand> entry : new ArrayList<Map.Entry<UUID, ArmorStand>>(seats.entrySet())) {
+            ArmorStand stand = entry.getValue();
+            FurnitureInstance instance = instances.get(entry.getKey());
+            FurnitureDefinition definition = instance == null ? null
+                    : definition(instance.definitionId()).orElse(null);
+            if (stand == null || !stand.isValid() || stand.getPassengers().isEmpty()
+                    || definition == null || definition.seat() == null) {
+                if (stand != null && stand.isValid()) stand.remove();
+                seats.remove(entry.getKey());
+            }
+        }
+    }
+
+    private void removeSeat(UUID instanceId) {
+        ArmorStand stand = seats.remove(instanceId);
+        if (stand != null && stand.isValid()) stand.remove();
+    }
+
+    public void shutdown() {
+        for (ArmorStand stand : new ArrayList<ArmorStand>(seats.values())) {
+            if (stand != null && stand.isValid()) stand.remove();
+        }
+        seats.clear();
     }
 
     public void validateDefinitions() {

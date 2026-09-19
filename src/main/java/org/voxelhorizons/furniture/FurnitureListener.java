@@ -83,8 +83,7 @@ public final class FurnitureListener implements Listener {
             }
         } else if (event.getAction() == org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK) {
             event.setCancelled(true);
-            org.bukkit.Bukkit.getPluginManager().callEvent(
-                    new FurnitureInteractEvent(event.getPlayer(), instance.get()));
+            interact(event.getPlayer(), instance.get());
         }
     }
 
@@ -158,7 +157,14 @@ public final class FurnitureListener implements Listener {
         Optional<FurnitureInstance> instance = furniture.byEntity(event.getRightClicked().getUniqueId());
         if (!instance.isPresent()) return;
         event.setCancelled(true);
-        org.bukkit.Bukkit.getPluginManager().callEvent(new FurnitureInteractEvent(event.getPlayer(), instance.get()));
+        interact(event.getPlayer(), instance.get());
+    }
+
+    private void interact(Player player, FurnitureInstance instance) {
+        FurnitureInteractEvent interaction = new FurnitureInteractEvent(player, instance);
+        org.bukkit.Bukkit.getPluginManager().callEvent(interaction);
+        if (interaction.isCancelled()) return;
+        if (player.hasPermission("voxelfurniture.sit")) furniture.sit(player, instance);
     }
 
     @EventHandler(priority = EventPriority.LOWEST)
