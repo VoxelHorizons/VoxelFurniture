@@ -38,7 +38,7 @@ public final class DisplayFurnitureRenderer implements FurnitureRenderer {
             Method setItem = display.getClass().getMethod("setItemStack", ItemStack.class);
             setItem.invoke(display, modelItem.clone());
             applyDisplayTransform(display);
-            applyScale(display, definition.scale());
+            applyScale(display, definition.scaleX(), definition.scaleY(), definition.scaleZ());
             applyViewDistance(display, definition.viewDistance());
 
             Entity interaction = location.getWorld().spawnEntity(location, EntityType.valueOf("INTERACTION"));
@@ -63,12 +63,12 @@ public final class DisplayFurnitureRenderer implements FurnitureRenderer {
         display.getClass().getMethod("setItemDisplayTransform", transformType).invoke(display, fixed);
     }
 
-    private static void applyScale(Entity display, float scale) {
-        if (scale == 1.0F) return;
+    private static void applyScale(Entity display, float x, float y, float z) {
+        if (x == 1.0F && y == 1.0F && z == 1.0F) return;
         try {
             Class<?> matrixType = Class.forName("org.joml.Matrix4f");
             Object matrix = matrixType.getConstructor().newInstance();
-            matrixType.getMethod("scale", Float.TYPE).invoke(matrix, scale);
+            matrixType.getMethod("scale", Float.TYPE, Float.TYPE, Float.TYPE).invoke(matrix, x, y, z);
             display.getClass().getMethod("setTransformationMatrix", matrixType).invoke(display, matrix);
         } catch (ReflectiveOperationException exception) {
             throw new IllegalStateException("Unable to apply furniture display scale", exception);
