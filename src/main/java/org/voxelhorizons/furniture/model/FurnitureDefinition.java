@@ -15,6 +15,7 @@ public final class FurnitureDefinition {
     private final float height;
     private final float scale;
     private final float rotationStep;
+    private final FurniturePlacement placement;
     private final double offsetX;
     private final double offsetY;
     private final double offsetZ;
@@ -26,12 +27,21 @@ public final class FurnitureDefinition {
                                float rotationStep, double offsetX, double offsetY, double offsetZ,
                                List<FurnitureBlockDefinition> blocks) {
         this(itemId, modelItemId, dropItemId, renderer, width, height, scale, rotationStep,
-                offsetX, offsetY, offsetZ, blocks, Collections.<FurnitureStateRule>emptyList());
+                FurniturePlacement.TOP, offsetX, offsetY, offsetZ, blocks, Collections.<FurnitureStateRule>emptyList());
     }
 
     public FurnitureDefinition(ContentID itemId, ContentID modelItemId, ContentID dropItemId,
                                FurnitureRendererType renderer, float width, float height, float scale,
                                float rotationStep, double offsetX, double offsetY, double offsetZ,
+                               List<FurnitureBlockDefinition> blocks, List<FurnitureStateRule> states) {
+        this(itemId, modelItemId, dropItemId, renderer, width, height, scale, rotationStep,
+                FurniturePlacement.TOP, offsetX, offsetY, offsetZ, blocks, states);
+    }
+
+    public FurnitureDefinition(ContentID itemId, ContentID modelItemId, ContentID dropItemId,
+                               FurnitureRendererType renderer, float width, float height, float scale,
+                               float rotationStep, FurniturePlacement placement,
+                               double offsetX, double offsetY, double offsetZ,
                                List<FurnitureBlockDefinition> blocks, List<FurnitureStateRule> states) {
         this.itemId = itemId;
         this.modelItemId = modelItemId;
@@ -41,6 +51,7 @@ public final class FurnitureDefinition {
         this.height = height;
         this.scale = scale;
         this.rotationStep = rotationStep;
+        this.placement = placement;
         this.offsetX = offsetX;
         this.offsetY = offsetY;
         this.offsetZ = offsetZ;
@@ -56,6 +67,7 @@ public final class FurnitureDefinition {
     public float height() { return height; }
     public float scale() { return scale; }
     public float rotationStep() { return rotationStep; }
+    public FurniturePlacement placement() { return placement; }
     public double offsetX() { return offsetX; }
     public double offsetY() { return offsetY; }
     public double offsetZ() { return offsetZ; }
