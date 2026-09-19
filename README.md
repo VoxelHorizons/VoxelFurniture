@@ -36,11 +36,6 @@ items:
           x: 0.0
           y: 0.0
           z: 0.0
-
-        blocks:
-          - x: 0
-            y: 0
-            z: 0
 ```
 
 Optional `model_item` and `drop` values can point to different VoxelCore item IDs. Explicit `display` definitions
@@ -48,9 +43,12 @@ are rejected on servers without display entities; `auto` falls back safely.
 
 ### Collision blocks
 
-The optional `blocks` collection places real blocks with the furniture to provide physical collision. Offsets are
-whole block coordinates relative to the placement cell and rotate with the furniture's snapped yaw. The material
-defaults to `BARRIER`, but another non-air block material can be selected explicitly:
+The optional `blocks` collection places real blocks with the furniture to provide physical collision. Omit
+`blocks` entirely for pass-through furniture such as chairs or decorative props. Furniture identity, placement
+origin, and neighbor-dependent blockstates are tracked independently from collision blocks, so collisionless
+furniture still connects and refreshes normally. Offsets are whole block coordinates relative to the placement cell
+and rotate with the furniture's snapped yaw. The material defaults to `BARRIER`, but another non-air block material
+can be selected explicitly:
 
 ```yaml
         blocks:
@@ -94,8 +92,6 @@ items:
       furniture:
         renderer: auto
         rotation_step: 90
-        blocks:
-          - {x: 0, y: 0, z: 0}
         blockstates:
           - neighbors: [north, east, south, west]
             model_item: voxel:oak_table_middle
@@ -137,7 +133,7 @@ with legs on its local west side therefore needs a neighbor on its local east si
 `absent: [direction, ...]` can prevent a rule matching extra neighbors. When no rule matches,
 the base item's model and original placement yaw are retained. Only directly adjacent furniture
 of the same concrete ID at the same height connects. State changes never alter collision cells.
-Blockstates require `rotation_step: 90` and exactly one collision block at the origin.
+Blockstates require `rotation_step: 90`. Collision blocks are optional and do not participate in neighbor detection.
 
 ## Commands
 
