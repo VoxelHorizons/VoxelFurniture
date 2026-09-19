@@ -16,10 +16,11 @@ import java.util.Set;
 
 public final class FurnitureDefinitionParser {
     private static final Set<String> KEYS = new HashSet<String>(Arrays.asList(
-            "renderer", "model_item", "drop", "hitbox", "scale", "rotation_step", "placement", "offset", "blocks", "blockstates"
+            "renderer", "model_item", "drop", "hitbox", "scale", "rotation_step", "placement", "seat", "offset", "blocks", "blockstates"
     ));
     private static final Set<String> HITBOX_KEYS = new HashSet<String>(Arrays.asList("width", "height"));
     private static final Set<String> OFFSET_KEYS = new HashSet<String>(Arrays.asList("x", "y", "z"));
+    private static final Set<String> SEAT_KEYS = new HashSet<String>(Arrays.asList("x", "y", "z", "yaw"));
     private static final Set<String> BLOCK_KEYS = new HashSet<String>(Arrays.asList("x", "y", "z", "material"));
     private static final Set<String> STATE_KEYS = new HashSet<String>(Arrays.asList(
             "neighbors", "absent", "model_item", "rotation", "rotate", "relative"));
@@ -61,6 +62,17 @@ public final class FurnitureDefinitionParser {
             height = positive(item, hitbox.get("height"), height, "hitbox.height");
         }
 
+        FurnitureSeatDefinition seat = null;
+        if (map.containsKey("seat")) {
+            Map<?, ?> seatMap = nested(item, map.get("seat"), "seat");
+            rejectUnknown(item, seatMap, SEAT_KEYS, "seat");
+            double seatX = number(item, seatMap.get("x"), 0.0D, "seat.x");
+            double seatY = number(item, seatMap.get("y"), -1.1D, "seat.y");
+            double seatZ = number(item, seatMap.get("z"), 0.0D, "seat.z");
+            float seatYaw = (float) number(item, seatMap.get("yaw"), 0.0D, "seat.yaw");
+            seat = new FurnitureSeatDefinition(seatX, seatY, seatZ, seatYaw);
+        }
+
         double x = 0.0D;
         double y = 0.0D;
         double z = 0.0D;
@@ -79,7 +91,7 @@ public final class FurnitureDefinitionParser {
             throw invalid(item, "blockstates require rotation_step: 90");
         }
         return Optional.of(new FurnitureDefinition(item.id(), modelItem, drop, renderer, width, height, scale,
-                rotationStep, placement, x, y, z, blocks, states));
+                rotationStep, placement, seat, x, y, z, blocks, states));
     }
 
     private static List<FurnitureStateRule> states(ItemDefinition item, Object raw) {
