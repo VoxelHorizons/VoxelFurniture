@@ -13,7 +13,9 @@ public final class FurnitureDefinition {
     private final FurnitureRendererType renderer;
     private final float width;
     private final float height;
-    private final float scale;
+    private final float scaleX;
+    private final float scaleY;
+    private final float scaleZ;
     private final float viewDistance;
     private final float rotationStep;
     private final FurniturePlacement placement;
@@ -28,7 +30,7 @@ public final class FurnitureDefinition {
                                FurnitureRendererType renderer, float width, float height, float scale,
                                float rotationStep, double offsetX, double offsetY, double offsetZ,
                                List<FurnitureBlockDefinition> blocks) {
-        this(itemId, modelItemId, dropItemId, renderer, width, height, scale, 64.0F, rotationStep,
+        this(itemId, modelItemId, dropItemId, renderer, width, height, scale, scale, scale, 64.0F, rotationStep,
                 FurniturePlacement.TOP, null, offsetX, offsetY, offsetZ, blocks,
                 Collections.<FurnitureStateRule>emptyList());
     }
@@ -37,12 +39,23 @@ public final class FurnitureDefinition {
                                FurnitureRendererType renderer, float width, float height, float scale,
                                float rotationStep, double offsetX, double offsetY, double offsetZ,
                                List<FurnitureBlockDefinition> blocks, List<FurnitureStateRule> states) {
-        this(itemId, modelItemId, dropItemId, renderer, width, height, scale, 64.0F, rotationStep,
+        this(itemId, modelItemId, dropItemId, renderer, width, height, scale, scale, scale, 64.0F, rotationStep,
                 FurniturePlacement.TOP, null, offsetX, offsetY, offsetZ, blocks, states);
     }
 
     public FurnitureDefinition(ContentID itemId, ContentID modelItemId, ContentID dropItemId,
                                FurnitureRendererType renderer, float width, float height, float scale,
+                               float viewDistance, float rotationStep, FurniturePlacement placement,
+                               FurnitureSeatDefinition seat,
+                               double offsetX, double offsetY, double offsetZ,
+                               List<FurnitureBlockDefinition> blocks, List<FurnitureStateRule> states) {
+        this(itemId, modelItemId, dropItemId, renderer, width, height, scale, scale, scale, viewDistance,
+                rotationStep, placement, seat, offsetX, offsetY, offsetZ, blocks, states);
+    }
+
+    public FurnitureDefinition(ContentID itemId, ContentID modelItemId, ContentID dropItemId,
+                               FurnitureRendererType renderer, float width, float height,
+                               float scaleX, float scaleY, float scaleZ,
                                float viewDistance, float rotationStep, FurniturePlacement placement,
                                FurnitureSeatDefinition seat,
                                double offsetX, double offsetY, double offsetZ,
@@ -53,7 +66,9 @@ public final class FurnitureDefinition {
         this.renderer = renderer;
         this.width = width;
         this.height = height;
-        this.scale = scale;
+        this.scaleX = scaleX;
+        this.scaleY = scaleY;
+        this.scaleZ = scaleZ;
         this.viewDistance = viewDistance;
         this.rotationStep = rotationStep;
         this.placement = placement;
@@ -71,7 +86,14 @@ public final class FurnitureDefinition {
     public FurnitureRendererType renderer() { return renderer; }
     public float width() { return width; }
     public float height() { return height; }
-    public float scale() { return scale; }
+    /**
+     * Legacy uniform-scale accessor retained for source/binary compatibility.
+     * For axis-specific definitions this returns the X scale.
+     */
+    public float scale() { return scaleX; }
+    public float scaleX() { return scaleX; }
+    public float scaleY() { return scaleY; }
+    public float scaleZ() { return scaleZ; }
     public float viewDistance() { return viewDistance; }
     public float rotationStep() { return rotationStep; }
     public FurniturePlacement placement() { return placement; }
