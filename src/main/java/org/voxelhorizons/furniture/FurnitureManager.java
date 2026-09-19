@@ -43,6 +43,7 @@ public final class FurnitureManager {
     private final Map<UUID, FurnitureInstance> instances;
     private final Map<UUID, UUID> entityIndex = new LinkedHashMap<UUID, UUID>();
     private final Map<BlockKey, UUID> blockIndex = new LinkedHashMap<BlockKey, UUID>();
+    private final Map<BlockKey, UUID> originIndex = new LinkedHashMap<BlockKey, UUID>();
 
     public FurnitureManager(VoxelCore core, FurnitureDefinitionParser definitions,
                             FurnitureRendererSelector renderers, FurnitureStore store) {
@@ -87,7 +88,9 @@ public final class FurnitureManager {
     public Optional<FurnitureInstance> place(Player player, FurnitureDefinition definition, Location location) {
         float yaw = snapYaw(player.getLocation().getYaw(), definition.rotationStep());
         List<FurnitureBlockPosition> collisionBlocks = resolveBlocks(definition.blocks(), location, yaw);
-        if (!canPlace(location.getWorld(), collisionBlocks)) return Optional.empty();
+        BlockKey origin = BlockKey.of(location);
+        if (originIndex.containsKey(origin) || blockIndex.containsKey(origin)
+                || !canPlace(location.getWorld(), collisionBlocks)) return Optional.empty();
         FurniturePlaceEvent event = new FurniturePlaceEvent(player, definition, location);
         Bukkit.getPluginManager().callEvent(event);
         if (event.isCancelled()) return Optional.empty();
@@ -188,7 +191,7 @@ public final class FurnitureManager {
         int alignedMask = 0;
         int[][] offsets = {{0, -1}, {1, 0}, {0, 1}, {-1, 0}};
         for (int index = 0; index < offsets.length; index++) {
-            UUID id = blockIndex.get(new BlockKey(location.getWorld().getUID(), location.getBlockX() + offsets[index][0],
+            UUID id = originIndex.get(new BlockKey(location.getWorld().getUID(), location.getBlockX() + offsets[index][0],
                     location.getBlockY(), location.getBlockZ() + offsets[index][1]));
             FurnitureInstance neighbor = id == null ? null : instances.get(id);
             if (neighbor != null && neighbor.definitionId().equals(definition.itemId())) {
@@ -202,7 +205,7 @@ public final class FurnitureManager {
     private void refreshAround(Location location) {
         int[][] offsets = {{0, 0}, {0, -1}, {1, 0}, {0, 1}, {-1, 0}};
         for (int[] offset : offsets) {
-            UUID id = blockIndex.get(new BlockKey(location.getWorld().getUID(), location.getBlockX() + offset[0],
+            UUID id = originIndex.get(new BlockKey(location.getWorld().getUID(), location.getBlockX() + offset[0],
                     location.getBlockY(), location.getBlockZ() + offset[1]));
             FurnitureInstance instance = id == null ? null : instances.get(id);
             if (instance != null) refresh(instance);
@@ -240,6 +243,7 @@ public final class FurnitureManager {
     private void rebuildIndex() {
         entityIndex.clear();
         blockIndex.clear();
+        originIndex.clear();
         for (FurnitureInstance instance : instances.values()) index(instance);
     }
 
@@ -267,7 +271,8 @@ public final class FurnitureManager {
     private boolean canPlace(World world, List<FurnitureBlockPosition> blocks) {
         for (FurnitureBlockPosition position : blocks) {
             Block block = world.getBlockAt(position.x(), position.y(), position.z());
-            if (block.getType() != Material.AIR || blockIndex.containsKey(BlockKey.of(block))) return false;
+            BlockKey key = BlockKey.of(block);
+            if (block.getType() != Material.AIR || blockIndex.containsKey(key) || originIndex.containsKey(key)) return false;
         }
         return true;
     }
@@ -289,7 +294,9 @@ public final class FurnitureManager {
 
     private void index(FurnitureInstance instance) {
         for (UUID entity : instance.entities()) entityIndex.put(entity, instance.id());
-        World world = instance.location().getWorld();
+        Location location = instance.location();
+        World world = location.getWorld();
+        originIndex.put(BlockKey.of(location), instance.id());
         for (FurnitureBlockPosition block : instance.blocks()) {
             blockIndex.put(new BlockKey(world.getUID(), block.x(), block.y(), block.z()), instance.id());
         }
@@ -297,7 +304,9 @@ public final class FurnitureManager {
 
     private void unindex(FurnitureInstance instance) {
         for (UUID entity : instance.entities()) entityIndex.remove(entity);
-        World world = instance.location().getWorld();
+        Location location = instance.location();
+        World world = location.getWorld();
+        originIndex.remove(BlockKey.of(location), instance.id());
         for (FurnitureBlockPosition block : instance.blocks()) {
             blockIndex.remove(new BlockKey(world.getUID(), block.x(), block.y(), block.z()));
         }
@@ -318,6 +327,11 @@ public final class FurnitureManager {
 
         static BlockKey of(Block block) {
             return new BlockKey(block.getWorld().getUID(), block.getX(), block.getY(), block.getZ());
+        }
+
+        static BlockKey of(Location location) {
+            return new BlockKey(location.getWorld().getUID(), location.getBlockX(), location.getBlockY(),
+                    location.getBlockZ());
         }
 
         @Override public boolean equals(Object other) {
