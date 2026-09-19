@@ -18,16 +18,24 @@ public final class FurnitureInstance {
     private final List<FurnitureBlockPosition> blocks;
     private final ContentID renderedModel;
     private final float renderedYaw;
+    private final String renderSignature;
 
     public FurnitureInstance(UUID id, ContentID definitionId, Location location, float yaw,
                              FurnitureRendererType renderer, List<UUID> entities,
                              List<FurnitureBlockPosition> blocks) {
-        this(id, definitionId, location, yaw, renderer, entities, blocks, null, Float.NaN);
+        this(id, definitionId, location, yaw, renderer, entities, blocks, null, Float.NaN, null);
     }
 
     public FurnitureInstance(UUID id, ContentID definitionId, Location location, float yaw,
                              FurnitureRendererType renderer, List<UUID> entities,
                              List<FurnitureBlockPosition> blocks, ContentID renderedModel, float renderedYaw) {
+        this(id, definitionId, location, yaw, renderer, entities, blocks, renderedModel, renderedYaw, null);
+    }
+
+    public FurnitureInstance(UUID id, ContentID definitionId, Location location, float yaw,
+                             FurnitureRendererType renderer, List<UUID> entities,
+                             List<FurnitureBlockPosition> blocks, ContentID renderedModel, float renderedYaw,
+                             String renderSignature) {
         this.id = id;
         this.definitionId = definitionId;
         this.location = location.clone();
@@ -37,6 +45,7 @@ public final class FurnitureInstance {
         this.blocks = Collections.unmodifiableList(new ArrayList<FurnitureBlockPosition>(blocks));
         this.renderedModel = renderedModel;
         this.renderedYaw = renderedYaw;
+        this.renderSignature = renderSignature;
     }
 
     public UUID id() { return id; }
@@ -48,4 +57,5 @@ public final class FurnitureInstance {
     public List<FurnitureBlockPosition> blocks() { return blocks; }
     public ContentID renderedModel() { return renderedModel; }
     public float renderedYaw() { return renderedYaw; }
+    public String renderSignature() { return renderSignature; }
 }

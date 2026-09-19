@@ -53,14 +53,15 @@ public final class FurnitureStore {
                     location, (float) section.getDouble("yaw"),
                     FurnitureRendererType.valueOf(section.getString("renderer")), entities, blocks,
                     section.contains("rendered_model") ? ContentID.parse(section.getString("rendered_model"), "minecraft") : null,
-                    section.contains("rendered_yaw") ? (float) section.getDouble("rendered_yaw") : Float.NaN));
+                    section.contains("rendered_yaw") ? (float) section.getDouble("rendered_yaw") : Float.NaN,
+                    section.getString("render_signature")));
         }
         return result;
     }
 
     public void save(Collection<FurnitureInstance> instances) {
         YamlConfiguration yaml = new YamlConfiguration();
-        yaml.set("schema", 1);
+        yaml.set("schema", 2);
         for (FurnitureInstance instance : instances) {
             String path = "instances." + instance.id();
             Location location = instance.location();
@@ -72,6 +73,7 @@ public final class FurnitureStore {
             yaml.set(path + ".yaw", instance.yaw());
             if (instance.renderedModel() != null) yaml.set(path + ".rendered_model", instance.renderedModel().toString());
             if (!Float.isNaN(instance.renderedYaw())) yaml.set(path + ".rendered_yaw", instance.renderedYaw());
+            if (instance.renderSignature() != null) yaml.set(path + ".render_signature", instance.renderSignature());
             yaml.set(path + ".renderer", instance.renderer().name());
             List<String> entities = new ArrayList<String>();
             for (UUID id : instance.entities()) entities.add(id.toString());

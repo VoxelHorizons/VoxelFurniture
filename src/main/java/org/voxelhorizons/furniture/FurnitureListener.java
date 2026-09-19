@@ -20,6 +20,7 @@ import org.bukkit.event.block.BlockPistonRetractEvent;
 import org.bukkit.event.player.PlayerArmorStandManipulateEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.world.ChunkLoadEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.voxelhorizons.VoxelCore;
@@ -40,6 +41,11 @@ public final class FurnitureListener implements Listener {
         this.core = core;
         this.furniture = furniture;
         this.protectEntities = protectEntities;
+    }
+
+    @EventHandler
+    public void onChunkLoad(ChunkLoadEvent event) {
+        furniture.onChunkLoad(event.getChunk());
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
