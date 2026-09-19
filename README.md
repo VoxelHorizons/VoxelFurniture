@@ -48,6 +48,28 @@ items:
 Optional `model_item` and `drop` values can point to different VoxelCore item IDs. Explicit `display` definitions
 are rejected on servers without display entities; `auto` falls back safely.
 
+### Render offset
+
+`offset` is expressed in the furniture's local coordinate system rather than fixed world axes. The X/Z
+components rotate around Y with the furniture's rendered yaw, while Y remains vertical.
+
+For example:
+
+```yaml
+        offset:
+          x: -0.75
+          y: -1.0
+          z: 0.0
+```
+
+At yaw `0`, this shifts the renderer `-0.75` on world X. At yaw `90`, the same local X offset rotates onto
+world Z instead. This keeps wall-mounted and directional furniture aligned consistently when placed on different
+axes.
+
+The local-offset behavior applies to both the ItemDisplay renderer and the legacy armor-stand renderer. Existing
+persisted furniture created with the older world-axis offset behavior is detected through the renderer signature and
+rebuilt once with the corrected transform when its chunk loads.
+
 ### Scale
 
 `scale` supports both the original uniform numeric form and an axis-specific mapping.
