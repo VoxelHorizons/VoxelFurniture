@@ -106,8 +106,15 @@ referenced by any persisted furniture instance are removed as orphans. The same 
 loads, so historical duplicate ItemDisplays/Interaction entities left by older versions are cleaned automatically as
 their chunks are visited.
 
+The orphan sweeper does **not** require a surviving furniture placement record. If a furniture instance was already
+removed from `furniture.yml` while older duplicate renderer entities were left behind, those entities are still
+recognized as orphans because their UUIDs are referenced by no persisted instance.
+
 The orphan sweeper does **not** remove ordinary armor stands, display entities, NPCs, mobs, or entities owned by other
 plugins. Only entities carrying VoxelFurniture's renderer tag and no longer referenced by `furniture.yml` qualify.
+
+Administrators can run `/vf cleanup` to immediately sweep every currently loaded chunk and report the number of
+orphaned renderer entities removed. Unloaded chunks are still repaired automatically when they later load.
 
 Newly persisted furniture also stores a renderer-definition signature. If the definition still matches on the next
 restart and its recorded renderer entities are present, VoxelFurniture reuses those entities rather than spawning a
@@ -278,6 +285,7 @@ Blockstates require `rotation_step: 90`. Collision blocks are optional and do no
 - `/vf list` - list furniture definitions.
 - `/vf give <namespace:id> [amount]` - give a furniture item.
 - `/vf remove <instance-uuid>` - remove a persisted instance without a drop.
+- `/vf cleanup` - remove unreferenced VoxelFurniture renderer ghosts from all currently loaded chunks.
 
 ## API events
 
