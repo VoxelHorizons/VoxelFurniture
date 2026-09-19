@@ -61,7 +61,7 @@ public final class FurnitureListener implements Listener {
         if (!definition.get().placement().allows(event.getBlockFace())) return;
 
         Block target = event.getClickedBlock().getRelative(event.getBlockFace());
-        if (target.getType() != Material.AIR) return;
+        if (!FurnitureManager.isReplaceable(target.getType())) return;
         Location location = target.getLocation().add(0.5D, 0.0D, 0.5D);
         if (!furniture.place(player, definition.get(), location).isPresent()) return;
         event.setCancelled(true);
