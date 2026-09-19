@@ -7,10 +7,10 @@ import org.bukkit.entity.Entity;
 import java.lang.reflect.Method;
 import java.util.UUID;
 
-final class EntitySupport {
+public final class EntitySupport {
     private EntitySupport() {}
 
-    static Entity find(UUID id) {
+    public static Entity find(UUID id) {
         try {
             Method method = Bukkit.class.getMethod("getEntity", UUID.class);
             return (Entity) method.invoke(null, id);
@@ -22,7 +22,7 @@ final class EntitySupport {
         }
     }
 
-    static void remove(Iterable<UUID> ids) {
+    public static void remove(Iterable<UUID> ids) {
         for (UUID id : ids) {
             Entity entity = find(id);
             if (entity != null) entity.remove();
