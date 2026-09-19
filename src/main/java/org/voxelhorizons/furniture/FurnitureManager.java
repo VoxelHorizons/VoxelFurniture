@@ -359,11 +359,17 @@ public final class FurnitureManager {
         return result;
     }
 
+    static boolean isReplaceable(Material material) {
+        return material == Material.AIR || !material.isSolid();
+    }
+
     private boolean canPlace(World world, List<FurnitureBlockPosition> blocks) {
         for (FurnitureBlockPosition position : blocks) {
             Block block = world.getBlockAt(position.x(), position.y(), position.z());
             BlockKey key = BlockKey.of(block);
-            if (block.getType() != Material.AIR || blockIndex.containsKey(key) || originIndex.containsKey(key)) return false;
+            if (!isReplaceable(block.getType()) || blockIndex.containsKey(key) || originIndex.containsKey(key)) {
+                return false;
+            }
         }
         return true;
     }
