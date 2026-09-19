@@ -33,7 +33,7 @@ public final class FurnitureCommand implements CommandExecutor, TabCompleter {
         if (args.length == 0) {
             sender.sendMessage(ChatColor.GOLD + "VoxelFurniture " + ChatColor.GRAY + "- "
                     + furniture.definitions().size() + " definitions, " + furniture.instances().size() + " placed");
-            sender.sendMessage(ChatColor.YELLOW + "/" + label + " list | give <id> [amount] | remove <uuid>");
+            sender.sendMessage(ChatColor.YELLOW + "/" + label + " list | give <id> [amount] | remove <uuid> | cleanup");
             return true;
         }
         if ("list".equalsIgnoreCase(args[0])) {
@@ -70,6 +70,16 @@ public final class FurnitureCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage(ChatColor.GREEN + "Given " + amount + "x " + id);
             return true;
         }
+        if ("cleanup".equalsIgnoreCase(args[0])) {
+            if (!sender.hasPermission("voxelfurniture.admin.cleanup")) return denied(sender);
+            int removed = furniture.cleanupLoadedOrphans();
+            sender.sendMessage(ChatColor.GREEN + "Removed " + removed
+                    + " orphaned VoxelFurniture renderer entit" + (removed == 1 ? "y." : "ies."));
+            sender.sendMessage(ChatColor.GRAY
+                    + "Unloaded chunks are repaired automatically when they load.");
+            return true;
+        }
+
         if ("remove".equalsIgnoreCase(args[0])) {
             if (!sender.hasPermission("voxelfurniture.admin.remove")) return denied(sender);
             if (args.length < 2) {
@@ -95,7 +105,7 @@ public final class FurnitureCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
-        if (args.length == 1) return filter(Arrays.asList("list", "give", "remove"), args[0]);
+        if (args.length == 1) return filter(Arrays.asList("list", "give", "remove", "cleanup"), args[0]);
         if (args.length == 2 && "give".equalsIgnoreCase(args[0])) {
             List<String> ids = new ArrayList<String>();
             for (ContentID id : furniture.definitions().keySet()) ids.add(id.toString());
