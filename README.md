@@ -94,6 +94,26 @@ settings.
 This setting applies to the ItemDisplay renderer on Minecraft 1.19.4+. The legacy armor-stand renderer does not
 provide an equivalent per-entity view-range setting.
 
+### Persistence and orphan repair
+
+Renderer entity UUIDs are persisted in `furniture.yml`, but Minecraft may not have an entity's chunk loaded when
+VoxelFurniture starts. VoxelFurniture therefore never treats a failed UUID lookup during startup as proof that an old
+renderer no longer exists.
+
+On startup, persisted furniture is reconciled only when its origin chunk is loaded. VoxelFurniture also scans loaded
+chunks for entities carrying its own `voxelfurniture` renderer tag. Tagged renderer entities whose UUID is no longer
+referenced by any persisted furniture instance are removed as orphans. The same repair runs whenever another chunk
+loads, so historical duplicate ItemDisplays/Interaction entities left by older versions are cleaned automatically as
+their chunks are visited.
+
+The orphan sweeper does **not** remove ordinary armor stands, display entities, NPCs, mobs, or entities owned by other
+plugins. Only entities carrying VoxelFurniture's renderer tag and no longer referenced by `furniture.yml` qualify.
+
+Newly persisted furniture also stores a renderer-definition signature. If the definition still matches on the next
+restart and its recorded renderer entities are present, VoxelFurniture reuses those entities rather than spawning a
+new copy. A live VoxelCore content revision still forces the normal definition synchronization so configuration
+changes propagate immediately.
+
 ### Live definition synchronization
 
 Placed furniture keeps only instance-specific state such as its stable furniture UUID, world location, and placed
@@ -110,8 +130,9 @@ placed furniture is automatically rebuilt from the latest definition, including:
 - seat configuration/position
 - collision block layouts when the new cells can be migrated safely
 
-Renderer entity UUIDs may change during reconciliation and the updated UUIDs are persisted back to
-`furniture.yml`; the furniture instance UUID itself remains stable. If an updated collision layout would overwrite
+Renderer entity UUIDs may change during a genuine reconciliation and the updated UUIDs are persisted back to
+`furniture.yml`; the furniture instance UUID itself remains stable. Unloaded instances wait for their chunk to load
+before being rebuilt, preventing old persisted renderers from being orphaned during startup. If an updated collision layout would overwrite
 another solid block or another furniture instance, VoxelFurniture keeps that instance's previous collision blocks
 and logs a warning instead of modifying unrelated world blocks.
 
