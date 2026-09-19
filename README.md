@@ -291,11 +291,17 @@ Directions are world north/east/south/west. Rules are tried most-specific-first 
 each pattern rotates through 90-degree turns by default. `rotate: false` fixes the specified direction;
 `rotation` adds degrees to the matched yaw to correct a model authored facing another direction.
 For directional furniture such as benches, set `relative: true` and `rotate: false` on each rule.
-Directions then follow the furniture's snapped placement yaw (north at yaw 0), and only neighbors
-of the same concrete item ID **and facing** count. The selected model retains its placement yaw;
-`rotation` can still add an offset for an authored model facing differently. A left-end model
-with legs on its local west side therefore needs a neighbor on its local east side. Rules without
-`relative: true` retain the original world-direction matching used by tables.
+Directions then follow the furniture's snapped placement yaw (north at yaw 0). By default, relative rules count only
+neighbors of the same concrete item ID **and facing**, preserving the original bench behavior.
+
+Set `aligned_only: false` on a relative rule when differently facing pieces must still count as connected. This is
+useful for modular seating: a straight chair next to a 90-degree corner can still become a middle segment, while
+local L-shaped patterns can distinguish inner and outer corners. `aligned_only` defaults to `true`, so existing
+content does not change.
+
+The selected model retains its placement yaw; `rotation` can still add an offset for an authored model facing
+differently. A left-end model with legs on its local west side therefore needs a neighbor on its local east side.
+Rules without `relative: true` retain the original world-direction matching used by tables.
 `absent: [direction, ...]` can prevent a rule matching extra neighbors. When no rule matches,
 the base item's model and original placement yaw are retained. Only directly adjacent furniture
 of the same concrete ID at the same height connects. State changes never alter collision cells.

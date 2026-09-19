@@ -14,9 +14,10 @@ public final class FurnitureStateSelector {
         FurnitureStateRule chosen = null;
         int turns = -1;
         for (FurnitureStateRule rule : definition.states()) {
+            int sourceNeighbors = rule.relative() && rule.alignedOnly() ? alignedNeighbors : neighbors;
             int localNeighbors = rule.relative()
-                    ? FurnitureStateRule.rotate(alignedNeighbors, (4 - (Math.round(baseYaw / 90.0f) & 3)) & 3)
-                    : neighbors;
+                    ? FurnitureStateRule.rotate(sourceNeighbors, (4 - (Math.round(baseYaw / 90.0f) & 3)) & 3)
+                    : sourceNeighbors;
             int match = rule.match(localNeighbors);
             if (match >= 0 && (chosen == null || rule.specificity() > chosen.specificity())) {
                 chosen = rule;
