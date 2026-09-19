@@ -192,10 +192,18 @@ public final class FurnitureManager {
         stand.setSilent(true);
         stand.addScoreboardTag("voxelfurniture-seat");
 
+        // Vehicles do not force a player's camera/body yaw to match the mount.
+        // Align the rider before mounting so seat.yaw can correct furniture
+        // models authored facing a different direction without dismounting them.
+        Location playerLocation = player.getLocation();
+        playerLocation.setYaw(location.getYaw());
+        player.teleport(playerLocation);
+
         if (!stand.addPassenger(player)) {
             stand.remove();
             return false;
         }
+
         seats.put(instance.id(), stand);
         return true;
     }
