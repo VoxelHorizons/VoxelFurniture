@@ -39,6 +39,7 @@ public final class DisplayFurnitureRenderer implements FurnitureRenderer {
             setItem.invoke(display, modelItem.clone());
             applyDisplayTransform(display);
             applyScale(display, definition.scale());
+            applyViewDistance(display, definition.viewDistance());
 
             Entity interaction = location.getWorld().spawnEntity(location, EntityType.valueOf("INTERACTION"));
             entities.add(interaction.getUniqueId());
@@ -72,6 +73,12 @@ public final class DisplayFurnitureRenderer implements FurnitureRenderer {
         } catch (ReflectiveOperationException exception) {
             throw new IllegalStateException("Unable to apply furniture display scale", exception);
         }
+    }
+
+    private static void applyViewDistance(Entity display, float blocks) throws ReflectiveOperationException {
+        // Display#setViewRange uses Minecraft's native 64-block multiplier.
+        float nativeRange = blocks / 64.0F;
+        display.getClass().getMethod("setViewRange", Float.TYPE).invoke(display, nativeRange);
     }
 
     private static void invoke(Object target, String name, Class<?> parameter, Object value)

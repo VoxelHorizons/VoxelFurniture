@@ -31,6 +31,7 @@ items:
           width: 1.0
           height: 1.2
         scale: 1.0
+        view_distance: 64
         rotation_step: 45
         placement: TOP
         seat:
@@ -46,6 +47,45 @@ items:
 
 Optional `model_item` and `drop` values can point to different VoxelCore item IDs. Explicit `display` definitions
 are rejected on servers without display entities; `auto` falls back safely.
+
+### Display view distance
+
+`view_distance` controls the requested ItemDisplay render distance in blocks and defaults to `64`.
+VoxelFurniture converts this block distance to Minecraft's native display `view_range` value when spawning modern
+display furniture. The effective client-visible distance can still be limited by the server/client entity distance
+settings.
+
+```yaml
+        view_distance: 128
+```
+
+This setting applies to the ItemDisplay renderer on Minecraft 1.19.4+. The legacy armor-stand renderer does not
+provide an equivalent per-entity view-range setting.
+
+### Live definition synchronization
+
+Placed furniture keeps only instance-specific state such as its stable furniture UUID, world location, and placed
+yaw. Definition-driven rendering is reconciled from the current VoxelCore item definition.
+
+VoxelFurniture watches VoxelCore's published content revision. After a successful VoxelCore content reload, existing
+placed furniture is automatically rebuilt from the latest definition, including:
+
+- rendered model/item data and neighbor-selected models
+- renderer choice
+- scale and render offsets
+- interaction hitbox dimensions
+- `view_distance`
+- seat configuration/position
+- collision block layouts when the new cells can be migrated safely
+
+Renderer entity UUIDs may change during reconciliation and the updated UUIDs are persisted back to
+`furniture.yml`; the furniture instance UUID itself remains stable. If an updated collision layout would overwrite
+another solid block or another furniture instance, VoxelFurniture keeps that instance's previous collision blocks
+and logs a warning instead of modifying unrelated world blocks.
+
+The same reconciliation runs on plugin startup, so definition changes also apply to furniture that was placed before
+the server restarted. Inventory/chest ItemStacks are owned by VoxelCore and are outside VoxelFurniture's placed-instance
+synchronization.
 
 ### Placement faces
 

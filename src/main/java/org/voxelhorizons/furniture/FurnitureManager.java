@@ -49,6 +49,7 @@ public final class FurnitureManager {
     private final Map<UUID, UUID> entityIndex = new LinkedHashMap<UUID, UUID>();
     private final Map<BlockKey, UUID> blockIndex = new LinkedHashMap<BlockKey, UUID>();
     private final Map<BlockKey, UUID> originIndex = new LinkedHashMap<BlockKey, UUID>();
+    private long contentRevision;
 
     public FurnitureManager(Plugin plugin, VoxelCore core, FurnitureDefinitionParser definitions,
                             FurnitureRendererSelector renderers, FurnitureStore store) {
@@ -58,9 +59,13 @@ public final class FurnitureManager {
         this.renderers = renderers;
         this.store = store;
         this.instances = new LinkedHashMap<UUID, FurnitureInstance>(store.load());
+        this.contentRevision = core.getContentRuntime().current().revision();
         rebuildIndex();
         plugin.getServer().getScheduler().runTaskTimer(plugin, new Runnable() {
-            @Override public void run() { cleanupSeats(); }
+            @Override public void run() {
+                cleanupSeats();
+                synchronizeIfContentChanged();
+            }
         }, 20L, 20L);
     }
 
@@ -244,6 +249,122 @@ public final class FurnitureManager {
             if (stand != null && stand.isValid()) stand.remove();
         }
         seats.clear();
+    }
+
+    private void synchronizeIfContentChanged() {
+        long currentRevision = core.getContentRuntime().current().revision();
+        if (currentRevision == contentRevision) return;
+
+        try {
+            validateDefinitions();
+            synchronizeDefinitions();
+            contentRevision = currentRevision;
+            plugin.getLogger().info("Synchronized placed furniture to VoxelCore content revision "
+                    + currentRevision + ".");
+        } catch (RuntimeException exception) {
+            plugin.getLogger().warning("Unable to synchronize furniture to VoxelCore content revision "
+                    + currentRevision + ": " + exception.getMessage());
+        }
+    }
+
+    /**
+     * Reconciles all persisted furniture against the current VoxelCore definitions.
+     * Placement identity, location and placed yaw remain stable; definition-driven
+     * renderer entities, collision blocks and seats are refreshed.
+     */
+    public void synchronizeDefinitions() {
+        boolean changed = false;
+        for (FurnitureInstance instance : new ArrayList<FurnitureInstance>(instances.values())) {
+            FurnitureDefinition definition = definition(instance.definitionId()).orElse(null);
+            if (definition == null) {
+                plugin.getLogger().warning("Placed furniture " + instance.id() + " references missing definition "
+                        + instance.definitionId() + "; leaving the existing instance untouched.");
+                continue;
+            }
+
+            FurnitureStateSelector.Selection selected = state(definition, instance.location(), instance.yaw());
+            FurnitureRenderer replacementRenderer = renderers.select(definition.renderer());
+            List<UUID> replacement = Collections.emptyList();
+
+            try {
+                replacement = replacementRenderer.spawn(instance.location(), selected.yaw(),
+                        core.getItemManager().createRenderItem(selected.model()), definition);
+
+                List<FurnitureBlockPosition> desiredBlocks =
+                        resolveBlocks(definition.blocks(), instance.location(), instance.yaw());
+                List<FurnitureBlockPosition> finalBlocks = instance.blocks();
+                if (!sameBlocks(instance.blocks(), desiredBlocks)) {
+                    if (canMigrateBlocks(instance, desiredBlocks)) {
+                        removeBlocks(instance.location().getWorld(), instance.blocks());
+                        placeBlocks(instance.location().getWorld(), desiredBlocks,
+                                new ArrayList<FurnitureBlockPosition>());
+                        finalBlocks = desiredBlocks;
+                    } else {
+                        plugin.getLogger().warning("Could not apply updated collision blocks to furniture "
+                                + instance.id() + " (" + instance.definitionId()
+                                + ") because the new layout is obstructed; keeping its existing collision blocks.");
+                    }
+                }
+
+                FurnitureInstance updated = new FurnitureInstance(instance.id(), instance.definitionId(),
+                        instance.location(), instance.yaw(), replacementRenderer.type(), replacement, finalBlocks,
+                        selected.model(), selected.yaw());
+
+                unindex(instance);
+                instances.put(updated.id(), updated);
+                index(updated);
+                renderers.select(instance.renderer()).remove(instance.entities());
+                refreshSeat(updated, definition);
+                changed = true;
+            } catch (RuntimeException exception) {
+                replacementRenderer.remove(replacement);
+                plugin.getLogger().warning("Unable to synchronize furniture " + instance.id() + " ("
+                        + instance.definitionId() + "): " + exception.getMessage());
+            }
+        }
+
+        if (changed) save();
+    }
+
+    private void refreshSeat(FurnitureInstance instance, FurnitureDefinition definition) {
+        ArmorStand stand = seats.get(instance.id());
+        if (definition.seat() == null) {
+            removeSeat(instance.id());
+            return;
+        }
+        if (stand != null && stand.isValid()) {
+            stand.teleport(seatLocation(instance, definition.seat()));
+        }
+    }
+
+    private boolean canMigrateBlocks(FurnitureInstance instance, List<FurnitureBlockPosition> desired) {
+        World world = instance.location().getWorld();
+        Set<BlockKey> owned = new HashSet<BlockKey>();
+        for (FurnitureBlockPosition block : instance.blocks()) {
+            owned.add(new BlockKey(world.getUID(), block.x(), block.y(), block.z()));
+        }
+
+        for (FurnitureBlockPosition position : desired) {
+            Block block = world.getBlockAt(position.x(), position.y(), position.z());
+            BlockKey key = BlockKey.of(block);
+            UUID blockOwner = blockIndex.get(key);
+            UUID originOwner = originIndex.get(key);
+
+            if (blockOwner != null && !blockOwner.equals(instance.id())) return false;
+            if (originOwner != null && !originOwner.equals(instance.id())) return false;
+            if (!owned.contains(key) && !isReplaceable(block.getType())) return false;
+        }
+        return true;
+    }
+
+    private static boolean sameBlocks(List<FurnitureBlockPosition> left, List<FurnitureBlockPosition> right) {
+        if (left.size() != right.size()) return false;
+        for (int index = 0; index < left.size(); index++) {
+            FurnitureBlockPosition a = left.get(index);
+            FurnitureBlockPosition b = right.get(index);
+            if (a.x() != b.x() || a.y() != b.y() || a.z() != b.z() || a.material() != b.material()) return false;
+        }
+        return true;
     }
 
     public void validateDefinitions() {

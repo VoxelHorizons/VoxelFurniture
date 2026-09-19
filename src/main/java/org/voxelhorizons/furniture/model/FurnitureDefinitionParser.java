@@ -16,7 +16,7 @@ import java.util.Set;
 
 public final class FurnitureDefinitionParser {
     private static final Set<String> KEYS = new HashSet<String>(Arrays.asList(
-            "renderer", "model_item", "drop", "hitbox", "scale", "rotation_step", "placement", "seat", "offset", "blocks", "blockstates"
+            "renderer", "model_item", "drop", "hitbox", "scale", "view_distance", "rotation_step", "placement", "seat", "offset", "blocks", "blockstates"
     ));
     private static final Set<String> HITBOX_KEYS = new HashSet<String>(Arrays.asList("width", "height"));
     private static final Set<String> OFFSET_KEYS = new HashSet<String>(Arrays.asList("x", "y", "z"));
@@ -44,6 +44,7 @@ public final class FurnitureDefinitionParser {
         ContentID modelItem = contentId(item, map.get("model_item"), item.id(), "model_item");
         ContentID drop = contentId(item, map.get("drop"), item.id(), "drop");
         float scale = positive(item, map.get("scale"), 1.0f, "scale");
+        float viewDistance = positive(item, map.get("view_distance"), 64.0f, "view_distance");
         float rotationStep = positive(item, map.get("rotation_step"), defaultRotationStep, "rotation_step");
         if (rotationStep > 360.0f) throw invalid(item, "rotation_step cannot exceed 360");
         FurniturePlacement placement;
@@ -91,7 +92,7 @@ public final class FurnitureDefinitionParser {
             throw invalid(item, "blockstates require rotation_step: 90");
         }
         return Optional.of(new FurnitureDefinition(item.id(), modelItem, drop, renderer, width, height, scale,
-                rotationStep, placement, seat, x, y, z, blocks, states));
+                viewDistance, rotationStep, placement, seat, x, y, z, blocks, states));
     }
 
     private static List<FurnitureStateRule> states(ItemDefinition item, Object raw) {
