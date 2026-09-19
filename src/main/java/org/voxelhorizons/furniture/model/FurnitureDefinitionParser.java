@@ -19,6 +19,7 @@ public final class FurnitureDefinitionParser {
             "renderer", "model_item", "drop", "hitbox", "scale", "view_distance", "rotation_step", "placement", "seat", "offset", "blocks", "blockstates"
     ));
     private static final Set<String> HITBOX_KEYS = new HashSet<String>(Arrays.asList("width", "height"));
+    private static final Set<String> SCALE_KEYS = new HashSet<String>(Arrays.asList("x", "y", "z"));
     private static final Set<String> OFFSET_KEYS = new HashSet<String>(Arrays.asList("x", "y", "z"));
     private static final Set<String> SEAT_KEYS = new HashSet<String>(Arrays.asList("x", "y", "z", "yaw"));
     private static final Set<String> BLOCK_KEYS = new HashSet<String>(Arrays.asList("x", "y", "z", "material"));
@@ -43,7 +44,7 @@ public final class FurnitureDefinitionParser {
         FurnitureRendererType renderer = FurnitureRendererType.parse(map.get("renderer"), defaultRenderer);
         ContentID modelItem = contentId(item, map.get("model_item"), item.id(), "model_item");
         ContentID drop = contentId(item, map.get("drop"), item.id(), "drop");
-        float scale = positive(item, map.get("scale"), 1.0f, "scale");
+        float[] scale = scale(item, map.get("scale"));
         float viewDistance = positive(item, map.get("view_distance"), 64.0f, "view_distance");
         float rotationStep = positive(item, map.get("rotation_step"), defaultRotationStep, "rotation_step");
         if (rotationStep > 360.0f) throw invalid(item, "rotation_step cannot exceed 360");
@@ -91,8 +92,30 @@ public final class FurnitureDefinitionParser {
         if (!states.isEmpty() && rotationStep != 90.0f) {
             throw invalid(item, "blockstates require rotation_step: 90");
         }
-        return Optional.of(new FurnitureDefinition(item.id(), modelItem, drop, renderer, width, height, scale,
-                viewDistance, rotationStep, placement, seat, x, y, z, blocks, states));
+        return Optional.of(new FurnitureDefinition(item.id(), modelItem, drop, renderer, width, height,
+                scale[0], scale[1], scale[2], viewDistance, rotationStep, placement, seat,
+                x, y, z, blocks, states));
+    }
+
+    static float[] scale(ItemDefinition item, Object raw) {
+        if (raw == null) return new float[] {1.0F, 1.0F, 1.0F};
+
+        if (raw instanceof Number) {
+            float uniform = positive(item, raw, 1.0F, "scale");
+            return new float[] {uniform, uniform, uniform};
+        }
+
+        if (!(raw instanceof Map)) {
+            throw invalid(item, "scale must be numeric or a mapping with x, y and z");
+        }
+
+        Map<?, ?> map = (Map<?, ?>) raw;
+        rejectUnknown(item, map, SCALE_KEYS, "scale");
+        return new float[] {
+                positive(item, map.get("x"), 1.0F, "scale.x"),
+                positive(item, map.get("y"), 1.0F, "scale.y"),
+                positive(item, map.get("z"), 1.0F, "scale.z")
+        };
     }
 
     private static List<FurnitureStateRule> states(ItemDefinition item, Object raw) {
