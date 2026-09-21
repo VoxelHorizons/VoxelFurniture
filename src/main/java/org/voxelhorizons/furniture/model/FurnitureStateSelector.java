@@ -17,12 +17,20 @@ public final class FurnitureStateSelector {
     public static Selection select(FurnitureDefinition definition, int neighbors, int alignedNeighbors,
                                    int perpendicularNeighbors, int clockwiseNeighbors, int counterClockwiseNeighbors,
                                    int oppositeNeighbors, float baseYaw) {
+        return select(definition, neighbors, alignedNeighbors, perpendicularNeighbors, clockwiseNeighbors,
+                counterClockwiseNeighbors, oppositeNeighbors, 0, baseYaw);
+    }
+
+    public static Selection select(FurnitureDefinition definition, int neighbors, int alignedNeighbors,
+                                   int perpendicularNeighbors, int clockwiseNeighbors, int counterClockwiseNeighbors,
+                                   int oppositeNeighbors, int cornerNeighbors, float baseYaw) {
         FurnitureStateRule chosen = null;
         int turns = -1;
         for (FurnitureStateRule rule : definition.states()) {
             int sourceNeighbors;
             switch (rule.neighborFacing()) {
                 case SAME: sourceNeighbors = alignedNeighbors; break;
+                case SAME_OR_CORNER: sourceNeighbors = alignedNeighbors | cornerNeighbors; break;
                 case PERPENDICULAR: sourceNeighbors = perpendicularNeighbors; break;
                 case CLOCKWISE: sourceNeighbors = clockwiseNeighbors; break;
                 case COUNTERCLOCKWISE: sourceNeighbors = counterClockwiseNeighbors; break;
