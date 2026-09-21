@@ -41,6 +41,21 @@ public class FurnitureStateSelectorTest {
         assertEquals(id("chair"), FurnitureStateSelector.select(chair, 2, 0, 0).model());
     }
 
+    @Test public void mixedFacingNeighborsOnlyAffectTheirOwnAlignedRows() {
+        FurnitureDefinition chair = new FurnitureDefinition(id("chair"), id("chair"), id("chair"),
+                FurnitureRendererType.AUTO, 1, 1, 1, 90, 0, 0, 0, Collections.emptyList(), Arrays.asList(
+                new FurnitureStateRule(2, 13, id("right"), 0, false, true),
+                new FurnitureStateRule(8, 7, id("left"), 0, false, true),
+                new FurnitureStateRule(10, 5, id("middle"), 0, false, true)));
+
+        // Physically adjacent on both sides, but only the east chair is aligned.
+        // The centre must be an end, not a middle.
+        assertEquals(id("right"), FurnitureStateSelector.select(chair, 10, 2, 0).model());
+
+        // The sideways chair sees the centre as perpendicular, so it stays whole.
+        assertEquals(id("chair"), FurnitureStateSelector.select(chair, 8, 0, 90).model());
+    }
+
     @Test public void exactCornerRuleBeatsEarlierRotatedCornerRuleAtEqualSpecificity() {
         FurnitureDefinition chair = new FurnitureDefinition(id("chair"), id("chair"), id("chair"),
                 FurnitureRendererType.AUTO, 1, 1, 1, 90, 0, 0, 0, Collections.emptyList(), Arrays.asList(
