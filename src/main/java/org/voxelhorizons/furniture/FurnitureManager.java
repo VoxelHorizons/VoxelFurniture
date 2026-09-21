@@ -613,6 +613,8 @@ public final class FurnitureManager {
     private FurnitureStateSelector.Selection state(FurnitureDefinition definition, Location location, float yaw) {
         int mask = 0;
         int alignedMask = 0;
+        int perpendicularMask = 0;
+        int oppositeMask = 0;
         int[][] offsets = {{0, -1}, {1, 0}, {0, 1}, {-1, 0}};
         for (int index = 0; index < offsets.length; index++) {
             UUID id = originIndex.get(new BlockKey(location.getWorld().getUID(), location.getBlockX() + offsets[index][0],
@@ -620,10 +622,14 @@ public final class FurnitureManager {
             FurnitureInstance neighbor = id == null ? null : instances.get(id);
             if (neighbor != null && neighbor.definitionId().equals(definition.itemId())) {
                 mask |= 1 << index;
-                if (neighbor.yaw() == yaw) alignedMask |= 1 << index;
+                int relativeTurns = Math.round((neighbor.yaw() - yaw) / 90.0f) & 3;
+                if (relativeTurns == 0) alignedMask |= 1 << index;
+                else if (relativeTurns == 2) oppositeMask |= 1 << index;
+                else perpendicularMask |= 1 << index;
             }
         }
-        return FurnitureStateSelector.select(definition, mask, alignedMask, yaw);
+        return FurnitureStateSelector.select(definition, mask, alignedMask,
+                perpendicularMask, oppositeMask, yaw);
     }
 
     private void refreshAround(Location location) {
