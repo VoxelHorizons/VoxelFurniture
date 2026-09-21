@@ -74,8 +74,20 @@ public class FurnitureStateSelectorTest {
                 new FurnitureStateRule(1, 14, id("corner"), 0, false, true,
                         FurnitureStateRule.NeighborFacing.PERPENDICULAR)));
 
-        assertEquals(id("chair"), FurnitureStateSelector.select(chair, 1, 1, 0, 0, 0).model());
-        assertEquals(id("corner"), FurnitureStateSelector.select(chair, 1, 0, 1, 0, 0).model());
+        assertEquals(id("chair"), FurnitureStateSelector.select(chair, 1, 1, 0, 0, 0, 0, 0).model());
+        assertEquals(id("corner"), FurnitureStateSelector.select(chair, 1, 0, 1, 1, 0, 0, 0).model());
+    }
+
+    @Test public void distinguishesClockwiseAndCounterClockwiseCorners() {
+        FurnitureDefinition chair = new FurnitureDefinition(id("chair"), id("chair"), id("chair"),
+                FurnitureRendererType.AUTO, 1, 1, 1, 90, 0, 0, 0, Collections.emptyList(), Arrays.asList(
+                new FurnitureStateRule(4, 11, id("clockwise"), 0, false, true,
+                        FurnitureStateRule.NeighborFacing.CLOCKWISE),
+                new FurnitureStateRule(4, 11, id("counter"), 0, false, true,
+                        FurnitureStateRule.NeighborFacing.COUNTERCLOCKWISE)));
+
+        assertEquals(id("clockwise"), FurnitureStateSelector.select(chair, 4, 0, 4, 4, 0, 0, 0).model());
+        assertEquals(id("counter"), FurnitureStateSelector.select(chair, 4, 0, 4, 0, 4, 0, 0).model());
     }
 
     private static FurnitureDefinition table() {
