@@ -46,19 +46,27 @@ public class FurnitureStateSelectorTest {
                 FurnitureRendererType.AUTO, 1, 1, 1, 90, 0, 0, 0, Collections.emptyList(), Arrays.asList(
                 // Corners intentionally consider every matching furniture facing.
                 new FurnitureStateRule(3, 12, id("corner"), 0, false, true, false),
-                // Straight variants only consider same-facing furniture.
-                new FurnitureStateRule(2, 13, id("right"), 0, false, true),
-                new FurnitureStateRule(8, 7, id("left"), 0, false, true),
-                new FurnitureStateRule(10, 5, id("middle"), 0, false, true)));
+                // Straight variants accept aligned neighbors and verified corner junctions.
+                new FurnitureStateRule(2, 13, id("right"), 0, false, true,
+                        FurnitureStateRule.NeighborFacing.SAME_OR_CORNER),
+                new FurnitureStateRule(8, 7, id("left"), 0, false, true,
+                        FurnitureStateRule.NeighborFacing.SAME_OR_CORNER),
+                new FurnitureStateRule(10, 5, id("middle"), 0, false, true,
+                        FurnitureStateRule.NeighborFacing.SAME_OR_CORNER)));
 
         // North and east form a real L even when only the east chair is aligned.
         assertEquals(id("corner"), FurnitureStateSelector.select(chair, 3, 2, 0).model());
 
-        // East and west are physically occupied, but only east is aligned.
-        // This is an end, not a middle.
-        assertEquals(id("right"), FurnitureStateSelector.select(chair, 10, 2, 0).model());
+        // A sideways neighbor that does not continue around a corner is ignored.
+        assertEquals(id("right"), FurnitureStateSelector.select(
+                chair, 10, 2, 8, 8, 0, 0, 0, 0).model());
 
-        // The sideways chair sees the centre as perpendicular, so it stays whole.
+        // The same layout becomes a middle when the west neighbor is a real
+        // corner junction continuing onto the perpendicular axis.
+        assertEquals(id("middle"), FurnitureStateSelector.select(
+                chair, 10, 2, 8, 8, 0, 0, 8, 0).model());
+
+        // The sideways chair still stays whole when its neighbor is not a junction.
         assertEquals(id("chair"), FurnitureStateSelector.select(chair, 8, 0, 90).model());
     }
 
