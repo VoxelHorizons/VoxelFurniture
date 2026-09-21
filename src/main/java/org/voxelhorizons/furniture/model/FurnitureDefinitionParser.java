@@ -24,7 +24,7 @@ public final class FurnitureDefinitionParser {
     private static final Set<String> SEAT_KEYS = new HashSet<String>(Arrays.asList("x", "y", "z", "yaw"));
     private static final Set<String> BLOCK_KEYS = new HashSet<String>(Arrays.asList("x", "y", "z", "material"));
     private static final Set<String> STATE_KEYS = new HashSet<String>(Arrays.asList(
-            "neighbors", "absent", "model_item", "rotation", "rotate", "relative", "aligned_only"));
+            "neighbors", "absent", "model_item", "rotation", "rotate", "relative", "aligned_only", "neighbor_facing"));
 
     private final FurnitureRendererType defaultRenderer;
     private final float defaultRotationStep;
@@ -134,12 +134,20 @@ public final class FurnitureDefinitionParser {
                 throw invalid(item, "blockstates.relative must be a boolean");
             if (!(state.get("aligned_only") == null || state.get("aligned_only") instanceof Boolean))
                 throw invalid(item, "blockstates.aligned_only must be a boolean");
+            if (state.containsKey("aligned_only") && state.containsKey("neighbor_facing"))
+                throw invalid(item, "blockstates entry cannot combine aligned_only and neighbor_facing");
             boolean rotate = !Boolean.FALSE.equals(state.get("rotate"));
             boolean relative = Boolean.TRUE.equals(state.get("relative"));
             boolean alignedOnly = !Boolean.FALSE.equals(state.get("aligned_only"));
+            FurnitureStateRule.NeighborFacing neighborFacing;
+            try {
+                neighborFacing = FurnitureStateRule.NeighborFacing.parse(state.get("neighbor_facing"), alignedOnly);
+            } catch (IllegalArgumentException exception) {
+                throw invalid(item, "blockstates." + exception.getMessage());
+            }
             result.add(new FurnitureStateRule(required, absent,
                     contentId(item, state.get("model_item"), item.id(), "blockstates.model_item"), offset,
-                    rotate, relative, alignedOnly));
+                    rotate, relative, neighborFacing));
         }
         return result;
     }
