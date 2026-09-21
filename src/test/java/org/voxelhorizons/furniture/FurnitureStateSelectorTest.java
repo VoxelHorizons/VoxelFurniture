@@ -41,15 +41,21 @@ public class FurnitureStateSelectorTest {
         assertEquals(id("chair"), FurnitureStateSelector.select(chair, 2, 0, 0).model());
     }
 
-    @Test public void mixedFacingNeighborsOnlyAffectTheirOwnAlignedRows() {
+    @Test public void mixedFacingCornersDoNotCorruptStraightRows() {
         FurnitureDefinition chair = new FurnitureDefinition(id("chair"), id("chair"), id("chair"),
                 FurnitureRendererType.AUTO, 1, 1, 1, 90, 0, 0, 0, Collections.emptyList(), Arrays.asList(
+                // Corners intentionally consider every matching furniture facing.
+                new FurnitureStateRule(3, 12, id("corner"), 0, false, true, false),
+                // Straight variants only consider same-facing furniture.
                 new FurnitureStateRule(2, 13, id("right"), 0, false, true),
                 new FurnitureStateRule(8, 7, id("left"), 0, false, true),
                 new FurnitureStateRule(10, 5, id("middle"), 0, false, true)));
 
-        // Physically adjacent on both sides, but only the east chair is aligned.
-        // The centre must be an end, not a middle.
+        // North and east form a real L even when only the east chair is aligned.
+        assertEquals(id("corner"), FurnitureStateSelector.select(chair, 3, 2, 0).model());
+
+        // East and west are physically occupied, but only east is aligned.
+        // This is an end, not a middle.
         assertEquals(id("right"), FurnitureStateSelector.select(chair, 10, 2, 0).model());
 
         // The sideways chair sees the centre as perpendicular, so it stays whole.
