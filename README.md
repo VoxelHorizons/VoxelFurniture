@@ -296,6 +296,8 @@ For directional furniture such as benches, set `relative: true` and `rotate: fal
 Directions then follow the furniture's snapped placement yaw (north at yaw 0). By default, relative rules count only
 neighbors of the same concrete item ID **and facing**, preserving the original bench behavior.
 
+Use `neighbor_facing` when a rule must distinguish the neighbour's orientation. Supported values are `SAME` (the default), `PERPENDICULAR`, `CLOCKWISE`, `COUNTERCLOCKWISE`, `OPPOSITE`, and `ANY`. For example, `neighbor_facing: PERPENDICULAR` selects a corner only when the required adjacent furniture is turned 90 degrees relative to the current piece. Use `CLOCKWISE` and `COUNTERCLOCKWISE` when mirrored corner ends need different model rotations.
+
 Set `aligned_only: false` on a relative rule when differently facing pieces must still count as connected. This is
 useful for modular seating: a straight chair next to a 90-degree corner can still become a middle segment, while
 local L-shaped patterns can distinguish inner and outer corners. `aligned_only` defaults to `true`, so existing
