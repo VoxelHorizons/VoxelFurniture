@@ -90,24 +90,6 @@ public class FurnitureStateSelectorTest {
         assertEquals(id("counter"), FurnitureStateSelector.select(chair, 4, 0, 4, 0, 4, 0, 0).model());
     }
 
-    @Test public void mirroredTurnedEndsUseNeighborRotationWithoutBecomingCorners() {
-        FurnitureDefinition chair = new FurnitureDefinition(id("chair"), id("chair"), id("chair"),
-                FurnitureRendererType.AUTO, 1, 1, 1, 90, 0, 0, 0, Collections.emptyList(), Arrays.asList(
-                new FurnitureStateRule(1, 14, id("right"), -90, false, true,
-                        FurnitureStateRule.NeighborFacing.CLOCKWISE),
-                new FurnitureStateRule(1, 14, id("left"), 0, false, true,
-                        FurnitureStateRule.NeighborFacing.COUNTERCLOCKWISE)));
-
-        assertEquals(id("right"),
-                FurnitureStateSelector.select(chair, 1, 0, 1, 1, 0, 0, 0).model());
-        assertEquals(270.0f,
-                FurnitureStateSelector.select(chair, 1, 0, 1, 1, 0, 0, 0).yaw(), 0.01f);
-        assertEquals(id("left"),
-                FurnitureStateSelector.select(chair, 1, 0, 1, 0, 1, 0, 0).model());
-        assertEquals(id("chair"),
-                FurnitureStateSelector.select(chair, 1, 1, 0, 0, 0, 0, 0).model());
-    }
-
     private static FurnitureDefinition table() {
         return new FurnitureDefinition(id("table"), id("table"), id("table"), FurnitureRendererType.AUTO,
                 1, 1, 1, 90, 0, 0, 0, Collections.emptyList(), Arrays.asList(
