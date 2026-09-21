@@ -63,7 +63,7 @@ public final class FurnitureStateRule {
     }
 
     public enum NeighborFacing {
-        ANY, SAME, PERPENDICULAR, OPPOSITE;
+        ANY, SAME, PERPENDICULAR, CLOCKWISE, COUNTERCLOCKWISE, OPPOSITE;
 
         public static NeighborFacing parse(Object raw, boolean alignedOnly) {
             if (raw == null) return alignedOnly ? SAME : ANY;
@@ -71,7 +71,7 @@ public final class FurnitureStateRule {
             if ("ALIGNED".equals(value)) value = "SAME";
             try { return valueOf(value); }
             catch (IllegalArgumentException exception) {
-                throw new IllegalArgumentException("neighbor_facing must be ANY, SAME, PERPENDICULAR or OPPOSITE");
+                throw new IllegalArgumentException("neighbor_facing must be ANY, SAME, PERPENDICULAR, CLOCKWISE, COUNTERCLOCKWISE or OPPOSITE");
             }
         }
     }
