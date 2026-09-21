@@ -614,6 +614,8 @@ public final class FurnitureManager {
         int mask = 0;
         int alignedMask = 0;
         int perpendicularMask = 0;
+        int clockwiseMask = 0;
+        int counterClockwiseMask = 0;
         int oppositeMask = 0;
         int[][] offsets = {{0, -1}, {1, 0}, {0, 1}, {-1, 0}};
         for (int index = 0; index < offsets.length; index++) {
@@ -625,11 +627,15 @@ public final class FurnitureManager {
                 int relativeTurns = Math.round((neighbor.yaw() - yaw) / 90.0f) & 3;
                 if (relativeTurns == 0) alignedMask |= 1 << index;
                 else if (relativeTurns == 2) oppositeMask |= 1 << index;
-                else perpendicularMask |= 1 << index;
+                else {
+                    perpendicularMask |= 1 << index;
+                    if (relativeTurns == 1) clockwiseMask |= 1 << index;
+                    else counterClockwiseMask |= 1 << index;
+                }
             }
         }
         return FurnitureStateSelector.select(definition, mask, alignedMask,
-                perpendicularMask, oppositeMask, yaw);
+                perpendicularMask, clockwiseMask, counterClockwiseMask, oppositeMask, yaw);
     }
 
     private void refreshAround(Location location) {
