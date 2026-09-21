@@ -68,6 +68,16 @@ public class FurnitureStateSelectorTest {
         assertEquals(id("outer"), FurnitureStateSelector.select(chair, 9, 8, 0).model());
     }
 
+    @Test public void perpendicularRulesIgnoreSameFacingNeighbors() {
+        FurnitureDefinition chair = new FurnitureDefinition(id("chair"), id("chair"), id("chair"),
+                FurnitureRendererType.AUTO, 1, 1, 1, 90, 0, 0, 0, Collections.emptyList(), Arrays.asList(
+                new FurnitureStateRule(1, 14, id("corner"), 0, false, true,
+                        FurnitureStateRule.NeighborFacing.PERPENDICULAR)));
+
+        assertEquals(id("chair"), FurnitureStateSelector.select(chair, 1, 1, 0, 0, 0).model());
+        assertEquals(id("corner"), FurnitureStateSelector.select(chair, 1, 0, 1, 0, 0).model());
+    }
+
     private static FurnitureDefinition table() {
         return new FurnitureDefinition(id("table"), id("table"), id("table"), FurnitureRendererType.AUTO,
                 1, 1, 1, 90, 0, 0, 0, Collections.emptyList(), Arrays.asList(
