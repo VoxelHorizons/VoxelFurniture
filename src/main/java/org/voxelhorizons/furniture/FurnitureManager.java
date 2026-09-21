@@ -617,6 +617,7 @@ public final class FurnitureManager {
         int clockwiseMask = 0;
         int counterClockwiseMask = 0;
         int oppositeMask = 0;
+        int cornerMask = 0;
         int[][] offsets = {{0, -1}, {1, 0}, {0, 1}, {-1, 0}};
         for (int index = 0; index < offsets.length; index++) {
             UUID id = originIndex.get(new BlockKey(location.getWorld().getUID(), location.getBlockX() + offsets[index][0],
@@ -632,10 +633,33 @@ public final class FurnitureManager {
                     if (relativeTurns == 1) clockwiseMask |= 1 << index;
                     else counterClockwiseMask |= 1 << index;
                 }
+                if (continuesAroundCorner(definition.itemId(), neighbor.location(),
+                        offsets[index][0], offsets[index][1])) {
+                    cornerMask |= 1 << index;
+                }
             }
         }
         return FurnitureStateSelector.select(definition, mask, alignedMask,
-                perpendicularMask, clockwiseMask, counterClockwiseMask, oppositeMask, yaw);
+                perpendicularMask, clockwiseMask, counterClockwiseMask, oppositeMask, cornerMask, yaw);
+    }
+
+    /**
+     * A perpendicular neighbor only joins a straight state when that neighbor
+     * continues on the other axis. This distinguishes a real L junction from
+     * two unrelated sideways chairs touching each other.
+     */
+    private boolean continuesAroundCorner(ContentID definitionId, Location neighborLocation, int dx, int dz) {
+        int[][] perpendicularOffsets = dx == 0
+                ? new int[][] {{-1, 0}, {1, 0}}
+                : new int[][] {{0, -1}, {0, 1}};
+        for (int[] offset : perpendicularOffsets) {
+            UUID id = originIndex.get(new BlockKey(neighborLocation.getWorld().getUID(),
+                    neighborLocation.getBlockX() + offset[0], neighborLocation.getBlockY(),
+                    neighborLocation.getBlockZ() + offset[1]));
+            FurnitureInstance continuation = id == null ? null : instances.get(id);
+            if (continuation != null && continuation.definitionId().equals(definitionId)) return true;
+        }
+        return false;
     }
 
     private void refreshAround(Location location) {
