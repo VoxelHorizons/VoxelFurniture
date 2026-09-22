@@ -48,6 +48,40 @@ items:
 Optional `model_item` and `drop` values can point to different VoxelCore item IDs. Explicit `display` definitions
 are rejected on servers without display entities; `auto` falls back safely.
 
+### Inventories and use animations
+
+Furniture can expose a persistent chest-style inventory. Its size must be a multiple of nine from 9 through 54.
+An optional `animation.use` item selects a different render model while at least one player has that inventory open:
+
+```yaml
+items:
+  oak_bench:
+    material: OAK_PLANKS
+    display_name: "&fOak Bench"
+    render:
+      model: voxel:furniture/basic/bench/oak_bench
+    properties:
+      furniture:
+        renderer: auto
+        rotation_step: 90
+        animation:
+          use: voxel:oak_bench_open
+        inventory:
+          size: 27
+
+  oak_bench_open:
+    extends: oak_bench
+    abstract: true
+    render:
+      model: voxel:furniture/basic/bench/oak_bench_open
+```
+
+Players with `voxelfurniture.inventory` open the inventory by interacting with the furniture. All simultaneous
+viewers share the same live inventory. The use model remains active until the last viewer closes it, then the
+furniture returns to its current base or blockstate model. Contents persist in `furniture.yml`, are saved on close
+and shutdown, and drop when the furniture is broken. The animation model must reference a renderable VoxelCore item;
+an abstract item is recommended so it cannot be obtained directly.
+
 ### Render offset
 
 `offset` is expressed in the furniture's local coordinate system rather than fixed world axes. The X/Z
