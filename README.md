@@ -81,7 +81,8 @@ Players with `voxelfurniture.inventory` open the inventory by interacting with t
 viewers share the same live inventory. The use model remains active until the last viewer closes it, then the
 furniture returns to its current base or blockstate model. Contents persist in `furniture.yml`, are saved on close
 and shutdown, and drop when the furniture is broken. The animation model must reference a renderable VoxelCore item;
-an abstract item is recommended so it cannot be obtained directly.
+an abstract item is recommended so it cannot be obtained directly. The inventory title uses the furniture item's
+resolved `display_name`, including legacy colors and VoxelCore font/UI placeholders.
 
 ### Render offset
 
