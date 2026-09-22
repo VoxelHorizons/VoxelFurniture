@@ -16,12 +16,14 @@ import java.util.Set;
 
 public final class FurnitureDefinitionParser {
     private static final Set<String> KEYS = new HashSet<String>(Arrays.asList(
-            "renderer", "model_item", "drop", "hitbox", "scale", "view_distance", "rotation_step", "placement", "seat", "offset", "blocks", "blockstates"
+            "renderer", "model_item", "drop", "hitbox", "scale", "view_distance", "rotation_step", "placement", "seat", "offset", "blocks", "blockstates", "animation", "inventory"
     ));
     private static final Set<String> HITBOX_KEYS = new HashSet<String>(Arrays.asList("width", "height"));
     private static final Set<String> SCALE_KEYS = new HashSet<String>(Arrays.asList("x", "y", "z"));
     private static final Set<String> OFFSET_KEYS = new HashSet<String>(Arrays.asList("x", "y", "z"));
     private static final Set<String> SEAT_KEYS = new HashSet<String>(Arrays.asList("x", "y", "z", "yaw"));
+    private static final Set<String> ANIMATION_KEYS = new HashSet<String>(Arrays.asList("use"));
+    private static final Set<String> INVENTORY_KEYS = new HashSet<String>(Arrays.asList("size"));
     private static final Set<String> BLOCK_KEYS = new HashSet<String>(Arrays.asList("x", "y", "z", "material"));
     private static final Set<String> STATE_KEYS = new HashSet<String>(Arrays.asList(
             "neighbors", "absent", "model_item", "rotation", "rotate", "relative", "aligned_only", "neighbor_facing"));
@@ -75,6 +77,25 @@ public final class FurnitureDefinitionParser {
             seat = new FurnitureSeatDefinition(seatX, seatY, seatZ, seatYaw);
         }
 
+        ContentID animationUseModel = null;
+        if (map.containsKey("animation")) {
+            Map<?, ?> animation = nested(item, map.get("animation"), "animation");
+            rejectUnknown(item, animation, ANIMATION_KEYS, "animation");
+            if (!animation.containsKey("use")) throw invalid(item, "animation requires use");
+            animationUseModel = contentId(item, animation.get("use"), item.id(), "animation.use");
+        }
+
+        int inventorySize = 0;
+        if (map.containsKey("inventory")) {
+            Map<?, ?> inventory = nested(item, map.get("inventory"), "inventory");
+            rejectUnknown(item, inventory, INVENTORY_KEYS, "inventory");
+            if (!inventory.containsKey("size")) throw invalid(item, "inventory requires size");
+            inventorySize = integer(item, inventory.get("size"), 0, "inventory.size");
+            if (inventorySize < 9 || inventorySize > 54 || inventorySize % 9 != 0) {
+                throw invalid(item, "inventory.size must be a multiple of 9 between 9 and 54");
+            }
+        }
+
         double x = 0.0D;
         double y = 0.0D;
         double z = 0.0D;
@@ -94,7 +115,7 @@ public final class FurnitureDefinitionParser {
         }
         return Optional.of(new FurnitureDefinition(item.id(), modelItem, drop, renderer, width, height,
                 scale[0], scale[1], scale[2], viewDistance, rotationStep, placement, seat,
-                x, y, z, blocks, states));
+                x, y, z, blocks, states, animationUseModel, inventorySize));
     }
 
     static float[] scale(ItemDefinition item, Object raw) {

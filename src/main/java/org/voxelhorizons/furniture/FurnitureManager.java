@@ -9,14 +9,17 @@ import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.HumanEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
+import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.voxelhorizons.VoxelCore;
 import org.voxelhorizons.content.ContentID;
 import org.voxelhorizons.content.item.ItemDefinition;
 import org.voxelhorizons.furniture.event.FurnitureBreakEvent;
 import org.voxelhorizons.furniture.event.FurniturePlaceEvent;
+import org.voxelhorizons.furniture.inventory.FurnitureInventoryHolder;
 import org.voxelhorizons.furniture.model.FurnitureDefinition;
 import org.voxelhorizons.furniture.model.FurnitureBlockDefinition;
 import org.voxelhorizons.furniture.model.FurnitureBlockPosition;
@@ -54,6 +57,7 @@ public final class FurnitureManager {
     private final FurnitureStore store;
     private final Map<UUID, FurnitureInstance> instances;
     private final Map<UUID, ArmorStand> seats = new LinkedHashMap<UUID, ArmorStand>();
+    private final Map<UUID, Inventory> openInventories = new LinkedHashMap<UUID, Inventory>();
     private final Map<UUID, UUID> entityIndex = new LinkedHashMap<UUID, UUID>();
     private final Map<BlockKey, UUID> blockIndex = new LinkedHashMap<BlockKey, UUID>();
     private final Map<BlockKey, UUID> originIndex = new LinkedHashMap<BlockKey, UUID>();
@@ -153,6 +157,7 @@ public final class FurnitureManager {
         Bukkit.getPluginManager().callEvent(event);
         if (event.isCancelled()) return false;
         FurnitureDefinition definition = definition(instance.definitionId()).orElse(null);
+        instance = sealInventory(instance);
         removeSeat(instance.id());
         renderers.select(instance.renderer()).remove(instance.entities());
         removeBlocks(instance.location().getWorld(), instance.blocks());
@@ -165,14 +170,17 @@ public final class FurnitureManager {
             instance.location().getWorld().dropItemNaturally(instance.location(),
                     core.getItemManager().createItem(definition.dropItemId()));
         }
+        dropContents(instance);
         save();
         cleanupOriginChunk(instance.location());
         return true;
     }
 
     public boolean remove(UUID instanceId, boolean drop) {
-        FurnitureInstance instance = instances.remove(instanceId);
+        FurnitureInstance instance = instances.get(instanceId);
         if (instance == null) return false;
+        instance = sealInventory(instance);
+        instances.remove(instanceId);
         pendingSynchronization.remove(instance.id());
         forcedSynchronization.remove(instance.id());
         removeSeat(instance.id());
@@ -184,10 +192,80 @@ public final class FurnitureManager {
             FurnitureDefinition definition = definition(instance.definitionId()).orElse(null);
             if (definition != null) instance.location().getWorld().dropItemNaturally(instance.location(),
                     core.getItemManager().createItem(definition.dropItemId()));
+            dropContents(instance);
         }
         save();
         cleanupOriginChunk(instance.location());
         return true;
+    }
+
+    public boolean openInventory(Player player, FurnitureInstance requested) {
+        if (player == null || requested == null) return false;
+        FurnitureInstance instance = instances.get(requested.id());
+        if (instance == null) return false;
+        FurnitureDefinition definition = definition(instance.definitionId()).orElse(null);
+        if (definition == null || !definition.hasInventory()) return false;
+
+        Inventory inventory = openInventories.get(instance.id());
+        if (inventory == null || inventory.getSize() != definition.inventorySize()) {
+            FurnitureInventoryHolder holder = new FurnitureInventoryHolder(instance.id());
+            inventory = Bukkit.createInventory(holder, definition.inventorySize());
+            holder.bind(inventory);
+            List<ItemStack> stored = instance.inventoryContents();
+            for (int slot = 0; slot < stored.size() && slot < inventory.getSize(); slot++) {
+                ItemStack item = stored.get(slot);
+                inventory.setItem(slot, item == null ? null : item.clone());
+            }
+            openInventories.put(instance.id(), inventory);
+            refresh(instance);
+        }
+        player.openInventory(inventory);
+        return true;
+    }
+
+    public void closeInventory(final Inventory inventory) {
+        if (inventory == null || !(inventory.getHolder() instanceof FurnitureInventoryHolder)) return;
+        final UUID instanceId = ((FurnitureInventoryHolder) inventory.getHolder()).instanceId();
+        plugin.getServer().getScheduler().runTask(plugin, new Runnable() {
+            @Override public void run() {
+                Inventory active = openInventories.get(instanceId);
+                if (active != inventory || !inventory.getViewers().isEmpty()) return;
+                openInventories.remove(instanceId);
+                FurnitureInstance instance = instances.get(instanceId);
+                if (instance == null) return;
+                FurnitureInstance updated = withInventoryContents(instance, inventory.getContents());
+                instances.put(instanceId, updated);
+                save();
+                refresh(updated);
+            }
+        });
+    }
+
+    private FurnitureInstance sealInventory(FurnitureInstance instance) {
+        Inventory inventory = openInventories.remove(instance.id());
+        if (inventory == null) return instance;
+        for (HumanEntity viewer : new ArrayList<HumanEntity>(inventory.getViewers())) viewer.closeInventory();
+        FurnitureInstance updated = withInventoryContents(instance, inventory.getContents());
+        instances.put(updated.id(), updated);
+        return updated;
+    }
+
+    private static FurnitureInstance withInventoryContents(FurnitureInstance instance, ItemStack[] contents) {
+        List<ItemStack> items = new ArrayList<ItemStack>();
+        if (contents != null) {
+            for (ItemStack item : contents) items.add(item == null ? null : item.clone());
+        }
+        return new FurnitureInstance(instance.id(), instance.definitionId(), instance.location(), instance.yaw(),
+                instance.renderer(), instance.entities(), instance.blocks(), instance.renderedModel(),
+                instance.renderedYaw(), instance.renderSignature(), items);
+    }
+
+    private static void dropContents(FurnitureInstance instance) {
+        for (ItemStack item : instance.inventoryContents()) {
+            if (item != null && item.getType() != Material.AIR && item.getAmount() > 0) {
+                instance.location().getWorld().dropItemNaturally(instance.location(), item);
+            }
+        }
     }
 
     public boolean sit(Player player, FurnitureInstance instance) {
@@ -264,6 +342,11 @@ public final class FurnitureManager {
     }
 
     public void shutdown() {
+        for (UUID id : new ArrayList<UUID>(openInventories.keySet())) {
+            FurnitureInstance instance = instances.get(id);
+            if (instance != null) sealInventory(instance);
+        }
+        save();
         for (ArmorStand stand : new ArrayList<ArmorStand>(seats.values())) {
             if (stand != null && stand.isValid()) stand.remove();
         }
@@ -375,7 +458,7 @@ public final class FurnitureManager {
             return true;
         }
 
-        FurnitureStateSelector.Selection selected = state(definition, instance.location(), instance.yaw());
+        FurnitureStateSelector.Selection selected = selection(definition, instance);
         FurnitureRenderer replacementRenderer = renderers.select(definition.renderer());
         List<FurnitureBlockPosition> desiredBlocks =
                 resolveBlocks(definition.blocks(), instance.location(), instance.yaw());
@@ -411,7 +494,7 @@ public final class FurnitureManager {
                     definition, selected, replacementRenderer.type(), finalBlocks, modelItem);
             FurnitureInstance updated = new FurnitureInstance(instance.id(), instance.definitionId(),
                     instance.location(), instance.yaw(), replacementRenderer.type(), replacement, finalBlocks,
-                    selected.model(), selected.yaw(), appliedSignature);
+                    selected.model(), selected.yaw(), appliedSignature, instance.inventoryContents());
 
             // Remove the renderer that furniture.yml currently owns before
             // replacing its UUIDs. If any historical renderer cannot be found
@@ -596,6 +679,10 @@ public final class FurnitureManager {
                 if (!renderable(rule.model())) throw new IllegalArgumentException("Furniture " + furniture.itemId()
                         + " references unrenderable blockstate model " + rule.model());
             }
+            if (furniture.animationUseModel() != null && !renderable(furniture.animationUseModel())) {
+                throw new IllegalArgumentException("Furniture " + furniture.itemId()
+                        + " references unrenderable animation.use model " + furniture.animationUseModel());
+            }
         }
     }
 
@@ -672,10 +759,21 @@ public final class FurnitureManager {
         }
     }
 
+    private FurnitureStateSelector.Selection selection(FurnitureDefinition definition,
+                                                               FurnitureInstance instance) {
+        FurnitureStateSelector.Selection selected = state(definition, instance.location(), instance.yaw());
+        if (openInventories.containsKey(instance.id()) && definition.animationUseModel() != null) {
+            return new FurnitureStateSelector.Selection(definition.animationUseModel(), selected.yaw());
+        }
+        return selected;
+    }
+
     private void refresh(FurnitureInstance instance) {
         FurnitureDefinition definition = definition(instance.definitionId()).orElse(null);
-        if (definition == null || definition.states().isEmpty()) return;
-        FurnitureStateSelector.Selection selected = state(definition, instance.location(), instance.yaw());
+        if (definition == null) return;
+        boolean animated = openInventories.containsKey(instance.id()) && definition.animationUseModel() != null;
+        if (definition.states().isEmpty() && !animated && definition.modelItemId().equals(instance.renderedModel())) return;
+        FurnitureStateSelector.Selection selected = selection(definition, instance);
         if (selected.model().equals(instance.renderedModel()) && selected.yaw() == instance.renderedYaw()) return;
         FurnitureRenderer renderer = renderers.select(instance.renderer());
         try {
@@ -684,7 +782,7 @@ public final class FurnitureManager {
             String signature = renderSignature(definition, selected, instance.renderer(), instance.blocks(), modelItem);
             FurnitureInstance updated = new FurnitureInstance(instance.id(), instance.definitionId(), instance.location(),
                     instance.yaw(), instance.renderer(), replacement, instance.blocks(), selected.model(), selected.yaw(),
-                    signature);
+                    signature, instance.inventoryContents());
             unindex(instance);
             instances.put(updated.id(), updated);
             index(updated);

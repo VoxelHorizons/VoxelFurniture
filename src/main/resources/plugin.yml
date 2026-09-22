@@ -19,6 +19,8 @@ permissions:
     default: true
   voxelfurniture.sit:
     default: true
+  voxelfurniture.inventory:
+    default: true
   voxelfurniture.admin:
     default: op
   voxelfurniture.admin.give:
