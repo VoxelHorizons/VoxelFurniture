@@ -14,6 +14,12 @@ public final class FurnitureRenderTransform {
      */
     public static Location applyLocalOffset(Location origin, float yaw,
                                             double offsetX, double offsetY, double offsetZ) {
+        return applyLocalOffset(origin, yaw, offsetX, offsetY, offsetZ, 0.0F);
+    }
+
+    public static Location applyLocalOffset(Location origin, float yaw,
+                                            double offsetX, double offsetY, double offsetZ,
+                                            float rotation) {
         double radians = Math.toRadians(yaw);
         double cosine = Math.cos(radians);
         double sine = Math.sin(radians);
@@ -22,7 +28,7 @@ public final class FurnitureRenderTransform {
         double worldZ = offsetX * sine + offsetZ * cosine;
 
         Location result = origin.clone().add(worldX, offsetY, worldZ);
-        result.setYaw(yaw);
+        result.setYaw(yaw + rotation);
         return result;
     }
 }
