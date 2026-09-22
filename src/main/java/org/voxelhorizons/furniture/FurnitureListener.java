@@ -17,6 +17,7 @@ import org.bukkit.event.block.BlockExplodeEvent;
 import org.bukkit.event.block.BlockFromToEvent;
 import org.bukkit.event.block.BlockPistonExtendEvent;
 import org.bukkit.event.block.BlockPistonRetractEvent;
+import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.player.PlayerArmorStandManipulateEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
@@ -170,7 +171,13 @@ public final class FurnitureListener implements Listener {
         FurnitureInteractEvent interaction = new FurnitureInteractEvent(player, instance);
         org.bukkit.Bukkit.getPluginManager().callEvent(interaction);
         if (interaction.isCancelled()) return;
+        if (player.hasPermission("voxelfurniture.inventory") && furniture.openInventory(player, instance)) return;
         if (player.hasPermission("voxelfurniture.sit")) furniture.sit(player, instance);
+    }
+
+    @EventHandler
+    public void onInventoryClose(InventoryCloseEvent event) {
+        furniture.closeInventory(event.getInventory());
     }
 
     @EventHandler(priority = EventPriority.LOWEST)

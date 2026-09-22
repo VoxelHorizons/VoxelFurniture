@@ -58,9 +58,38 @@ public class FurnitureDefinitionParserTest {
         parse(scale);
     }
 
+    @Test public void parsesInventoryAndUseAnimation() {
+        Map<String, Object> animation = new LinkedHashMap<String, Object>();
+        animation.put("use", "voxel:test_open");
+        Map<String, Object> inventory = new LinkedHashMap<String, Object>();
+        inventory.put("size", 27);
+
+        Map<String, Object> furniture = new LinkedHashMap<String, Object>();
+        furniture.put("animation", animation);
+        furniture.put("inventory", inventory);
+        FurnitureDefinition definition = parseFurniture(furniture);
+
+        assertEquals(27, definition.inventorySize());
+        assertTrue(definition.hasInventory());
+        assertEquals(ContentID.parse("voxel:test_open", "voxel"), definition.animationUseModel());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsInventorySizeThatIsNotAChestRow() {
+        Map<String, Object> inventory = new LinkedHashMap<String, Object>();
+        inventory.put("size", 10);
+        Map<String, Object> furniture = new LinkedHashMap<String, Object>();
+        furniture.put("inventory", inventory);
+        parseFurniture(furniture);
+    }
+
     private static FurnitureDefinition parse(Object scale) {
         Map<String, Object> furniture = new LinkedHashMap<String, Object>();
         furniture.put("scale", scale);
+        return parseFurniture(furniture);
+    }
+
+    private static FurnitureDefinition parseFurniture(Map<String, Object> furniture) {
 
         Map<String, Object> properties = new LinkedHashMap<String, Object>();
         properties.put("furniture", furniture);

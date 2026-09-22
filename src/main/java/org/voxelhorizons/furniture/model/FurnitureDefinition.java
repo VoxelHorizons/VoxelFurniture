@@ -25,6 +25,8 @@ public final class FurnitureDefinition {
     private final double offsetZ;
     private final List<FurnitureBlockDefinition> blocks;
     private final List<FurnitureStateRule> states;
+    private final ContentID animationUseModel;
+    private final int inventorySize;
 
     public FurnitureDefinition(ContentID itemId, ContentID modelItemId, ContentID dropItemId,
                                FurnitureRendererType renderer, float width, float height, float scale,
@@ -60,6 +62,18 @@ public final class FurnitureDefinition {
                                FurnitureSeatDefinition seat,
                                double offsetX, double offsetY, double offsetZ,
                                List<FurnitureBlockDefinition> blocks, List<FurnitureStateRule> states) {
+        this(itemId, modelItemId, dropItemId, renderer, width, height, scaleX, scaleY, scaleZ,
+                viewDistance, rotationStep, placement, seat, offsetX, offsetY, offsetZ, blocks, states, null, 0);
+    }
+
+    public FurnitureDefinition(ContentID itemId, ContentID modelItemId, ContentID dropItemId,
+                               FurnitureRendererType renderer, float width, float height,
+                               float scaleX, float scaleY, float scaleZ,
+                               float viewDistance, float rotationStep, FurniturePlacement placement,
+                               FurnitureSeatDefinition seat,
+                               double offsetX, double offsetY, double offsetZ,
+                               List<FurnitureBlockDefinition> blocks, List<FurnitureStateRule> states,
+                               ContentID animationUseModel, int inventorySize) {
         this.itemId = itemId;
         this.modelItemId = modelItemId;
         this.dropItemId = dropItemId;
@@ -78,6 +92,8 @@ public final class FurnitureDefinition {
         this.offsetZ = offsetZ;
         this.blocks = Collections.unmodifiableList(new ArrayList<FurnitureBlockDefinition>(blocks));
         this.states = Collections.unmodifiableList(new ArrayList<FurnitureStateRule>(states));
+        this.animationUseModel = animationUseModel;
+        this.inventorySize = inventorySize;
     }
 
     public ContentID itemId() { return itemId; }
@@ -103,4 +119,7 @@ public final class FurnitureDefinition {
     public double offsetZ() { return offsetZ; }
     public List<FurnitureBlockDefinition> blocks() { return blocks; }
     public List<FurnitureStateRule> states() { return states; }
+    public ContentID animationUseModel() { return animationUseModel; }
+    public int inventorySize() { return inventorySize; }
+    public boolean hasInventory() { return inventorySize > 0; }
 }

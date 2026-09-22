@@ -6,6 +6,7 @@ import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.inventory.ItemStack;
 import org.voxelhorizons.content.ContentID;
 import org.voxelhorizons.furniture.model.FurnitureInstance;
 import org.voxelhorizons.furniture.model.FurnitureBlockPosition;
@@ -49,19 +50,26 @@ public final class FurnitureStore {
                 blocks.add(new FurnitureBlockPosition(integer(block.get("x")), integer(block.get("y")),
                         integer(block.get("z")), material));
             }
+            List<ItemStack> inventory = new ArrayList<ItemStack>();
+            List<?> storedInventory = section.getList("inventory");
+            if (storedInventory != null) {
+                for (Object value : storedInventory) {
+                    inventory.add(value instanceof ItemStack ? ((ItemStack) value).clone() : null);
+                }
+            }
             result.put(id, new FurnitureInstance(id, ContentID.parse(section.getString("definition"), "minecraft"),
                     location, (float) section.getDouble("yaw"),
                     FurnitureRendererType.valueOf(section.getString("renderer")), entities, blocks,
                     section.contains("rendered_model") ? ContentID.parse(section.getString("rendered_model"), "minecraft") : null,
                     section.contains("rendered_yaw") ? (float) section.getDouble("rendered_yaw") : Float.NaN,
-                    section.getString("render_signature")));
+                    section.getString("render_signature"), inventory));
         }
         return result;
     }
 
     public void save(Collection<FurnitureInstance> instances) {
         YamlConfiguration yaml = new YamlConfiguration();
-        yaml.set("schema", 2);
+        yaml.set("schema", 3);
         for (FurnitureInstance instance : instances) {
             String path = "instances." + instance.id();
             Location location = instance.location();
@@ -75,6 +83,9 @@ public final class FurnitureStore {
             if (!Float.isNaN(instance.renderedYaw())) yaml.set(path + ".rendered_yaw", instance.renderedYaw());
             if (instance.renderSignature() != null) yaml.set(path + ".render_signature", instance.renderSignature());
             yaml.set(path + ".renderer", instance.renderer().name());
+            if (!instance.inventoryContents().isEmpty()) {
+                yaml.set(path + ".inventory", instance.inventoryContents());
+            }
             List<String> entities = new ArrayList<String>();
             for (UUID id : instance.entities()) entities.add(id.toString());
             yaml.set(path + ".entities", entities);
