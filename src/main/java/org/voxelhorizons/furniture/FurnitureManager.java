@@ -59,12 +59,14 @@ public final class FurnitureManager {
     private final Map<UUID, FurnitureInstance> instances;
     private final Map<UUID, ArmorStand> seats = new LinkedHashMap<UUID, ArmorStand>();
     private final Map<UUID, Inventory> openInventories = new LinkedHashMap<UUID, Inventory>();
+    private final Map<UUID, Long> pendingInventoryCloses = new LinkedHashMap<UUID, Long>();
     private final Map<UUID, UUID> entityIndex = new LinkedHashMap<UUID, UUID>();
     private final Map<BlockKey, UUID> blockIndex = new LinkedHashMap<BlockKey, UUID>();
     private final Map<BlockKey, UUID> originIndex = new LinkedHashMap<BlockKey, UUID>();
     private final Set<UUID> pendingSynchronization = new HashSet<UUID>();
     private final Set<UUID> forcedSynchronization = new HashSet<UUID>();
     private long contentRevision;
+    private long inventoryCloseSequence;
 
     public FurnitureManager(Plugin plugin, VoxelCore core, FurnitureDefinitionParser definitions,
                             FurnitureRendererSelector renderers, FurnitureStore store) {
@@ -220,6 +222,7 @@ public final class FurnitureManager {
             openInventories.put(instance.id(), inventory);
             refresh(instance);
         }
+        pendingInventoryCloses.remove(instance.id());
         player.openInventory(inventory);
         return true;
     }
@@ -241,18 +244,37 @@ public final class FurnitureManager {
             @Override public void run() {
                 Inventory active = openInventories.get(instanceId);
                 if (active != inventory || !inventory.getViewers().isEmpty()) return;
-                openInventories.remove(instanceId);
                 FurnitureInstance instance = instances.get(instanceId);
                 if (instance == null) return;
                 FurnitureInstance updated = withInventoryContents(instance, inventory.getContents());
                 instances.put(instanceId, updated);
                 save();
-                refresh(updated);
+                FurnitureDefinition definition = definition(updated.definitionId()).orElse(null);
+                long closeDelay = definition != null && definition.animationUseModel() != null
+                        ? definition.animationCloseDelay() : 0L;
+                final long closeToken = ++inventoryCloseSequence;
+                pendingInventoryCloses.put(instanceId, closeToken);
+                if (closeDelay == 0L) finishInventoryClose(instanceId, inventory, closeToken);
+                else plugin.getServer().getScheduler().runTaskLater(plugin, new Runnable() {
+                    @Override public void run() { finishInventoryClose(instanceId, inventory, closeToken); }
+                }, closeDelay);
             }
         });
     }
 
+    private void finishInventoryClose(UUID instanceId, Inventory inventory, long closeToken) {
+        Long pending = pendingInventoryCloses.get(instanceId);
+        if (pending == null || pending.longValue() != closeToken) return;
+        Inventory active = openInventories.get(instanceId);
+        if (active != inventory || !inventory.getViewers().isEmpty()) return;
+        pendingInventoryCloses.remove(instanceId);
+        openInventories.remove(instanceId);
+        FurnitureInstance instance = instances.get(instanceId);
+        if (instance != null) refresh(instance);
+    }
+
     private FurnitureInstance sealInventory(FurnitureInstance instance) {
+        pendingInventoryCloses.remove(instance.id());
         Inventory inventory = openInventories.remove(instance.id());
         if (inventory == null) return instance;
         for (HumanEntity viewer : new ArrayList<HumanEntity>(inventory.getViewers())) viewer.closeInventory();
