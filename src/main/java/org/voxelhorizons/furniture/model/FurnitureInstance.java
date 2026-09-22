@@ -1,6 +1,7 @@
 package org.voxelhorizons.furniture.model;
 
 import org.bukkit.Location;
+import org.bukkit.inventory.ItemStack;
 import org.voxelhorizons.content.ContentID;
 
 import java.util.ArrayList;
@@ -19,6 +20,7 @@ public final class FurnitureInstance {
     private final ContentID renderedModel;
     private final float renderedYaw;
     private final String renderSignature;
+    private final List<ItemStack> inventoryContents;
 
     public FurnitureInstance(UUID id, ContentID definitionId, Location location, float yaw,
                              FurnitureRendererType renderer, List<UUID> entities,
@@ -36,6 +38,14 @@ public final class FurnitureInstance {
                              FurnitureRendererType renderer, List<UUID> entities,
                              List<FurnitureBlockPosition> blocks, ContentID renderedModel, float renderedYaw,
                              String renderSignature) {
+        this(id, definitionId, location, yaw, renderer, entities, blocks, renderedModel, renderedYaw,
+                renderSignature, Collections.<ItemStack>emptyList());
+    }
+
+    public FurnitureInstance(UUID id, ContentID definitionId, Location location, float yaw,
+                             FurnitureRendererType renderer, List<UUID> entities,
+                             List<FurnitureBlockPosition> blocks, ContentID renderedModel, float renderedYaw,
+                             String renderSignature, List<ItemStack> inventoryContents) {
         this.id = id;
         this.definitionId = definitionId;
         this.location = location.clone();
@@ -46,6 +56,7 @@ public final class FurnitureInstance {
         this.renderedModel = renderedModel;
         this.renderedYaw = renderedYaw;
         this.renderSignature = renderSignature;
+        this.inventoryContents = cloneItems(inventoryContents);
     }
 
     public UUID id() { return id; }
@@ -58,4 +69,13 @@ public final class FurnitureInstance {
     public ContentID renderedModel() { return renderedModel; }
     public float renderedYaw() { return renderedYaw; }
     public String renderSignature() { return renderSignature; }
+    public List<ItemStack> inventoryContents() { return cloneItems(inventoryContents); }
+
+    private static List<ItemStack> cloneItems(List<ItemStack> items) {
+        List<ItemStack> copy = new ArrayList<ItemStack>();
+        if (items != null) {
+            for (ItemStack item : items) copy.add(item == null ? null : item.clone());
+        }
+        return Collections.unmodifiableList(copy);
+    }
 }
