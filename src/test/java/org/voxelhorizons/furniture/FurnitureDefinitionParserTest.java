@@ -61,6 +61,7 @@ public class FurnitureDefinitionParserTest {
     @Test public void parsesInventoryAndUseAnimation() {
         Map<String, Object> animation = new LinkedHashMap<String, Object>();
         animation.put("use", "voxel:test_open");
+        animation.put("close_delay", 16);
         Map<String, Object> inventory = new LinkedHashMap<String, Object>();
         inventory.put("size", 27);
 
@@ -72,6 +73,26 @@ public class FurnitureDefinitionParserTest {
         assertEquals(27, definition.inventorySize());
         assertTrue(definition.hasInventory());
         assertEquals(ContentID.parse("voxel:test_open", "voxel"), definition.animationUseModel());
+        assertEquals(16, definition.animationCloseDelay());
+    }
+
+    @Test public void useAnimationDefaultsToTenTickCloseDelay() {
+        Map<String, Object> animation = new LinkedHashMap<String, Object>();
+        animation.put("use", "voxel:test_open");
+        Map<String, Object> furniture = new LinkedHashMap<String, Object>();
+        furniture.put("animation", animation);
+
+        assertEquals(10, parseFurniture(furniture).animationCloseDelay());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsNegativeAnimationCloseDelay() {
+        Map<String, Object> animation = new LinkedHashMap<String, Object>();
+        animation.put("use", "voxel:test_open");
+        animation.put("close_delay", -1);
+        Map<String, Object> furniture = new LinkedHashMap<String, Object>();
+        furniture.put("animation", animation);
+        parseFurniture(furniture);
     }
 
     @Test(expected = IllegalArgumentException.class)
