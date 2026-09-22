@@ -535,7 +535,7 @@ public final class FurnitureManager {
                 .append(definition.scaleX()).append('|').append(definition.scaleY()).append('|')
                 .append(definition.scaleZ()).append('|').append(definition.viewDistance()).append('|')
                 .append(definition.offsetX()).append('|').append(definition.offsetY()).append('|')
-                .append(definition.offsetZ()).append('|')
+                .append(definition.offsetZ()).append('|').append(definition.offsetRotation()).append('|')
                 .append(modelItem.serialize().toString());
 
         for (FurnitureBlockPosition block : blocks) {
