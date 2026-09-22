@@ -83,6 +83,19 @@ public class FurnitureDefinitionParserTest {
         parseFurniture(furniture);
     }
 
+    @Test public void parsesRenderOffsetRotation() {
+        Map<String, Object> offset = new LinkedHashMap<String, Object>();
+        offset.put("x", 0.25D);
+        offset.put("rotation", -90.0D);
+        Map<String, Object> furniture = new LinkedHashMap<String, Object>();
+        furniture.put("offset", offset);
+
+        FurnitureDefinition definition = parseFurniture(furniture);
+
+        assertEquals(0.25D, definition.offsetX(), 0.000001D);
+        assertEquals(-90.0F, definition.offsetRotation(), 0.000001F);
+    }
+
     private static FurnitureDefinition parse(Object scale) {
         Map<String, Object> furniture = new LinkedHashMap<String, Object>();
         furniture.put("scale", scale);
