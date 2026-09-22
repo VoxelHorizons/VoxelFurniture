@@ -20,7 +20,7 @@ public final class FurnitureDefinitionParser {
     ));
     private static final Set<String> HITBOX_KEYS = new HashSet<String>(Arrays.asList("width", "height"));
     private static final Set<String> SCALE_KEYS = new HashSet<String>(Arrays.asList("x", "y", "z"));
-    private static final Set<String> OFFSET_KEYS = new HashSet<String>(Arrays.asList("x", "y", "z"));
+    private static final Set<String> OFFSET_KEYS = new HashSet<String>(Arrays.asList("x", "y", "z", "rotation"));
     private static final Set<String> SEAT_KEYS = new HashSet<String>(Arrays.asList("x", "y", "z", "yaw"));
     private static final Set<String> ANIMATION_KEYS = new HashSet<String>(Arrays.asList("use"));
     private static final Set<String> INVENTORY_KEYS = new HashSet<String>(Arrays.asList("size"));
@@ -99,12 +99,14 @@ public final class FurnitureDefinitionParser {
         double x = 0.0D;
         double y = 0.0D;
         double z = 0.0D;
+        float offsetRotation = 0.0F;
         if (map.containsKey("offset")) {
             Map<?, ?> offset = nested(item, map.get("offset"), "offset");
             rejectUnknown(item, offset, OFFSET_KEYS, "offset");
             x = number(item, offset.get("x"), x, "offset.x");
             y = number(item, offset.get("y"), y, "offset.y");
             z = number(item, offset.get("z"), z, "offset.z");
+            offsetRotation = (float) number(item, offset.get("rotation"), offsetRotation, "offset.rotation");
         }
         List<FurnitureBlockDefinition> blocks = map.containsKey("blocks")
                 ? blocks(item, map.get("blocks")) : Collections.<FurnitureBlockDefinition>emptyList();
@@ -115,7 +117,7 @@ public final class FurnitureDefinitionParser {
         }
         return Optional.of(new FurnitureDefinition(item.id(), modelItem, drop, renderer, width, height,
                 scale[0], scale[1], scale[2], viewDistance, rotationStep, placement, seat,
-                x, y, z, blocks, states, animationUseModel, inventorySize));
+                x, y, z, offsetRotation, blocks, states, animationUseModel, inventorySize));
     }
 
     static float[] scale(ItemDefinition item, Object raw) {
