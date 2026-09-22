@@ -89,9 +89,20 @@ public final class FurnitureListener implements Listener {
                 furniture.breakFurniture(event.getPlayer(), instance.get());
             }
         } else if (event.getAction() == org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK) {
+            FurnitureDefinition definition = furniture.definition(instance.get().definitionId()).orElse(null);
+            if (allowsBlockPlacement(event.getPlayer(), event.getItem(), definition)) return;
             event.setCancelled(true);
             interact(event.getPlayer(), instance.get());
         }
+    }
+
+    private boolean allowsBlockPlacement(Player player, ItemStack held, FurnitureDefinition definition) {
+        if (definition == null) return false;
+        if (definition.hasInventory() && !player.isSneaking()) return false;
+        if (held == null || held.getType() == Material.AIR || !held.getType().isBlock()) return false;
+
+        Optional<ContentID> heldId = core.getItemManager().identify(held);
+        return !heldId.isPresent() || !furniture.definition(heldId.get()).isPresent();
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -163,6 +174,10 @@ public final class FurnitureListener implements Listener {
     public void onInteract(PlayerInteractEntityEvent event) {
         Optional<FurnitureInstance> instance = furniture.byEntity(event.getRightClicked().getUniqueId());
         if (!instance.isPresent()) return;
+        FurnitureDefinition definition = furniture.definition(instance.get().definitionId()).orElse(null);
+        if (allowsBlockPlacement(event.getPlayer(), event.getPlayer().getInventory().getItemInMainHand(), definition)) {
+            return;
+        }
         event.setCancelled(true);
         interact(event.getPlayer(), instance.get());
     }
