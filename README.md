@@ -67,6 +67,7 @@ items:
         rotation_step: 90
         animation:
           use: voxel:oak_bench_open
+          close_delay: 10
         inventory:
           size: 27
 
@@ -83,6 +84,15 @@ furniture returns to its current base or blockstate model. Contents persist in `
 and shutdown, and drop when the furniture is broken. The animation model must reference a renderable VoxelCore item;
 an abstract item is recommended so it cannot be obtained directly. The inventory title uses the furniture item's
 resolved `display_name`, including legacy colors and VoxelCore font/UI placeholders.
+
+`animation.close_delay` is measured in server ticks and defaults to `10` (half a second). Opening switches to the
+use model immediately. After the last viewer closes the inventory, VoxelFurniture saves its contents immediately
+but keeps the use model visible for this delay before restoring the normal or blockstate model. Set it to `0` for
+an immediate return.
+
+Players can place ordinary blocks against furniture collision blocks. Furniture with an inventory consumes a normal
+right-click to open it, so the player must sneak while placing a block against it, matching vanilla container
+interaction. VoxelFurniture items remain protected from placing their carrier blocks through this bypass.
 
 ### Render offset
 
