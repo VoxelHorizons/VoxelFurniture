@@ -43,6 +43,7 @@ items:
           x: 0.0
           y: 0.0
           z: 0.0
+          rotation: 0
 ```
 
 Optional `model_item` and `drop` values can point to different VoxelCore item IDs. Explicit `display` definitions
@@ -94,11 +95,16 @@ For example:
           x: -0.75
           y: -1.0
           z: 0.0
+          rotation: 90
 ```
 
 At yaw `0`, this shifts the renderer `-0.75` on world X. At yaw `90`, the same local X offset rotates onto
 world Z instead. This keeps wall-mounted and directional furniture aligned consistently when placed on different
 axes.
+
+The optional `rotation` value adds a yaw correction, in degrees, to the rendered model only. It does not rotate
+the furniture placement, collision blocks, seat, or the local X/Z offset. This is useful when an authored model's
+forward direction differs from VoxelFurniture's placement direction.
 
 The local-offset behavior applies to both the ItemDisplay renderer and the legacy armor-stand renderer. Existing
 persisted furniture created with the older world-axis offset behavior is detected through the renderer signature and
