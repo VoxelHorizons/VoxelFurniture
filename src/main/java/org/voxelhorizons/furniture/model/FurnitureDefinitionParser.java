@@ -22,7 +22,7 @@ public final class FurnitureDefinitionParser {
     private static final Set<String> SCALE_KEYS = new HashSet<String>(Arrays.asList("x", "y", "z"));
     private static final Set<String> OFFSET_KEYS = new HashSet<String>(Arrays.asList("x", "y", "z", "rotation"));
     private static final Set<String> SEAT_KEYS = new HashSet<String>(Arrays.asList("x", "y", "z", "yaw"));
-    private static final Set<String> ANIMATION_KEYS = new HashSet<String>(Arrays.asList("use"));
+    private static final Set<String> ANIMATION_KEYS = new HashSet<String>(Arrays.asList("use", "close_delay"));
     private static final Set<String> INVENTORY_KEYS = new HashSet<String>(Arrays.asList("size"));
     private static final Set<String> BLOCK_KEYS = new HashSet<String>(Arrays.asList("x", "y", "z", "material"));
     private static final Set<String> STATE_KEYS = new HashSet<String>(Arrays.asList(
@@ -78,11 +78,15 @@ public final class FurnitureDefinitionParser {
         }
 
         ContentID animationUseModel = null;
+        int animationCloseDelay = 10;
         if (map.containsKey("animation")) {
             Map<?, ?> animation = nested(item, map.get("animation"), "animation");
             rejectUnknown(item, animation, ANIMATION_KEYS, "animation");
             if (!animation.containsKey("use")) throw invalid(item, "animation requires use");
             animationUseModel = contentId(item, animation.get("use"), item.id(), "animation.use");
+            animationCloseDelay = integer(item, animation.get("close_delay"), animationCloseDelay,
+                    "animation.close_delay");
+            if (animationCloseDelay < 0) throw invalid(item, "animation.close_delay cannot be negative");
         }
 
         int inventorySize = 0;
@@ -117,7 +121,7 @@ public final class FurnitureDefinitionParser {
         }
         return Optional.of(new FurnitureDefinition(item.id(), modelItem, drop, renderer, width, height,
                 scale[0], scale[1], scale[2], viewDistance, rotationStep, placement, seat,
-                x, y, z, offsetRotation, blocks, states, animationUseModel, inventorySize));
+                x, y, z, offsetRotation, blocks, states, animationUseModel, animationCloseDelay, inventorySize));
     }
 
     static float[] scale(ItemDefinition item, Object raw) {
