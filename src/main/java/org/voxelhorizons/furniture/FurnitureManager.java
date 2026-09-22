@@ -2,6 +2,7 @@ package org.voxelhorizons.furniture;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
+import org.bukkit.ChatColor;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -209,7 +210,7 @@ public final class FurnitureManager {
         Inventory inventory = openInventories.get(instance.id());
         if (inventory == null || inventory.getSize() != definition.inventorySize()) {
             FurnitureInventoryHolder holder = new FurnitureInventoryHolder(instance.id());
-            inventory = Bukkit.createInventory(holder, definition.inventorySize());
+            inventory = Bukkit.createInventory(holder, definition.inventorySize(), inventoryTitle(definition));
             holder.bind(inventory);
             List<ItemStack> stored = instance.inventoryContents();
             for (int slot = 0; slot < stored.size() && slot < inventory.getSize(); slot++) {
@@ -221,6 +222,16 @@ public final class FurnitureManager {
         }
         player.openInventory(inventory);
         return true;
+    }
+
+    private String inventoryTitle(FurnitureDefinition furniture) {
+        Optional<ItemDefinition> item = core.getItemManager().getDefinition(furniture.itemId());
+        String title = item.isPresent() ? item.get().displayName() : null;
+        if (title == null || title.trim().isEmpty()) title = furniture.itemId().toString();
+        if (core.getTextPlaceholderService() != null) {
+            title = core.getTextPlaceholderService().resolve(title);
+        }
+        return ChatColor.translateAlternateColorCodes('&', title);
     }
 
     public void closeInventory(final Inventory inventory) {
