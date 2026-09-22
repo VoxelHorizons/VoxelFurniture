@@ -23,6 +23,7 @@ public final class FurnitureDefinition {
     private final double offsetX;
     private final double offsetY;
     private final double offsetZ;
+    private final float offsetRotation;
     private final List<FurnitureBlockDefinition> blocks;
     private final List<FurnitureStateRule> states;
     private final ContentID animationUseModel;
@@ -74,6 +75,19 @@ public final class FurnitureDefinition {
                                double offsetX, double offsetY, double offsetZ,
                                List<FurnitureBlockDefinition> blocks, List<FurnitureStateRule> states,
                                ContentID animationUseModel, int inventorySize) {
+        this(itemId, modelItemId, dropItemId, renderer, width, height, scaleX, scaleY, scaleZ,
+                viewDistance, rotationStep, placement, seat, offsetX, offsetY, offsetZ, 0.0F,
+                blocks, states, animationUseModel, inventorySize);
+    }
+
+    public FurnitureDefinition(ContentID itemId, ContentID modelItemId, ContentID dropItemId,
+                               FurnitureRendererType renderer, float width, float height,
+                               float scaleX, float scaleY, float scaleZ,
+                               float viewDistance, float rotationStep, FurniturePlacement placement,
+                               FurnitureSeatDefinition seat,
+                               double offsetX, double offsetY, double offsetZ, float offsetRotation,
+                               List<FurnitureBlockDefinition> blocks, List<FurnitureStateRule> states,
+                               ContentID animationUseModel, int inventorySize) {
         this.itemId = itemId;
         this.modelItemId = modelItemId;
         this.dropItemId = dropItemId;
@@ -90,6 +104,7 @@ public final class FurnitureDefinition {
         this.offsetX = offsetX;
         this.offsetY = offsetY;
         this.offsetZ = offsetZ;
+        this.offsetRotation = offsetRotation;
         this.blocks = Collections.unmodifiableList(new ArrayList<FurnitureBlockDefinition>(blocks));
         this.states = Collections.unmodifiableList(new ArrayList<FurnitureStateRule>(states));
         this.animationUseModel = animationUseModel;
@@ -117,6 +132,7 @@ public final class FurnitureDefinition {
     public double offsetX() { return offsetX; }
     public double offsetY() { return offsetY; }
     public double offsetZ() { return offsetZ; }
+    public float offsetRotation() { return offsetRotation; }
     public List<FurnitureBlockDefinition> blocks() { return blocks; }
     public List<FurnitureStateRule> states() { return states; }
     public ContentID animationUseModel() { return animationUseModel; }
