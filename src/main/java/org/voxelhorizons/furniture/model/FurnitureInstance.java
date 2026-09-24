@@ -22,6 +22,7 @@ public final class FurnitureInstance {
     private final String renderSignature;
     private final List<ItemStack> inventoryContents;
     private final Integer dyeColor;
+    private final boolean useAnimationActive;
 
     public FurnitureInstance(UUID id, ContentID definitionId, Location location, float yaw,
                              FurnitureRendererType renderer, List<UUID> entities,
@@ -48,13 +49,22 @@ public final class FurnitureInstance {
                              List<FurnitureBlockPosition> blocks, ContentID renderedModel, float renderedYaw,
                              String renderSignature, List<ItemStack> inventoryContents) {
         this(id, definitionId, location, yaw, renderer, entities, blocks, renderedModel, renderedYaw,
-                renderSignature, inventoryContents, null);
+                renderSignature, inventoryContents, null, false);
     }
 
     public FurnitureInstance(UUID id, ContentID definitionId, Location location, float yaw,
                              FurnitureRendererType renderer, List<UUID> entities,
                              List<FurnitureBlockPosition> blocks, ContentID renderedModel, float renderedYaw,
                              String renderSignature, List<ItemStack> inventoryContents, Integer dyeColor) {
+        this(id, definitionId, location, yaw, renderer, entities, blocks, renderedModel, renderedYaw,
+                renderSignature, inventoryContents, dyeColor, false);
+    }
+
+    public FurnitureInstance(UUID id, ContentID definitionId, Location location, float yaw,
+                             FurnitureRendererType renderer, List<UUID> entities,
+                             List<FurnitureBlockPosition> blocks, ContentID renderedModel, float renderedYaw,
+                             String renderSignature, List<ItemStack> inventoryContents, Integer dyeColor,
+                             boolean useAnimationActive) {
         this.id = id;
         this.definitionId = definitionId;
         this.location = location.clone();
@@ -67,6 +77,7 @@ public final class FurnitureInstance {
         this.renderSignature = renderSignature;
         this.inventoryContents = cloneItems(inventoryContents);
         this.dyeColor = dyeColor;
+        this.useAnimationActive = useAnimationActive;
     }
 
     public UUID id() { return id; }
@@ -81,6 +92,7 @@ public final class FurnitureInstance {
     public String renderSignature() { return renderSignature; }
     public List<ItemStack> inventoryContents() { return cloneItems(inventoryContents); }
     public Integer dyeColor() { return dyeColor; }
+    public boolean useAnimationActive() { return useAnimationActive; }
 
     private static List<ItemStack> cloneItems(List<ItemStack> items) {
         List<ItemStack> copy = new ArrayList<ItemStack>();
