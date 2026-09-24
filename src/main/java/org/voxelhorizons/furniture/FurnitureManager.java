@@ -120,13 +120,30 @@ public final class FurnitureManager {
     public Optional<FurnitureInstance> place(Player player, FurnitureDefinition definition, Location location) {
         cleanupOriginChunk(location);
         float yaw = snapYaw(player.getLocation().getYaw(), definition.rotationStep());
+        return place(definition, location, yaw, player);
+    }
+
+    /**
+     * Places system-owned furniture at an explicit yaw without requiring or impersonating a player.
+     * Intended for trusted addons restoring previously recorded furniture layouts. The yaw is snapped
+     * to the definition's configured rotation step and no player placement event is fired.
+     */
+    public Optional<FurnitureInstance> place(FurnitureDefinition definition, Location location, float yaw) {
+        cleanupOriginChunk(location);
+        return place(definition, location, snapYaw(yaw, definition.rotationStep()), null);
+    }
+
+    private Optional<FurnitureInstance> place(FurnitureDefinition definition, Location location, float yaw,
+                                               Player player) {
         List<FurnitureBlockPosition> collisionBlocks = resolveBlocks(definition.blocks(), location, yaw);
         BlockKey origin = BlockKey.of(location);
         if (originIndex.containsKey(origin) || blockIndex.containsKey(origin)
                 || !canPlace(location.getWorld(), collisionBlocks)) return Optional.empty();
-        FurniturePlaceEvent event = new FurniturePlaceEvent(player, definition, location);
-        Bukkit.getPluginManager().callEvent(event);
-        if (event.isCancelled()) return Optional.empty();
+        if (player != null) {
+            FurniturePlaceEvent event = new FurniturePlaceEvent(player, definition, location);
+            Bukkit.getPluginManager().callEvent(event);
+            if (event.isCancelled()) return Optional.empty();
+        }
         FurnitureStateSelector.Selection state = state(definition, location, yaw);
         ItemStack modelItem = core.getItemManager().createRenderItem(state.model());
         FurnitureRenderer renderer = renderers.select(definition.renderer());
