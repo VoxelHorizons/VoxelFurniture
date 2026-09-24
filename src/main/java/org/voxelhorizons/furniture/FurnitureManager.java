@@ -157,7 +157,7 @@ public final class FurnitureManager {
             entities = renderer.spawn(location, state.yaw(), modelItem, definition);
             instance = new FurnitureInstance(UUID.randomUUID(), definition.itemId(), location, yaw,
                     renderer.type(), entities, collisionBlocks, state.model(), state.yaw(), signature,
-                    Collections.<ItemStack>emptyList(), dyeColor);
+                    Collections.<ItemStack>emptyList(), dyeColor, false);
             instances.put(instance.id(), instance);
             index(instance);
             save();
@@ -206,9 +206,30 @@ public final class FurnitureManager {
             return false;
         FurnitureInstance colored = new FurnitureInstance(instance.id(), instance.definitionId(), instance.location(),
                 instance.yaw(), instance.renderer(), instance.entities(), instance.blocks(), instance.renderedModel(),
-                instance.renderedYaw(), instance.renderSignature(), instance.inventoryContents(), Integer.valueOf(rgb & 0xFFFFFF));
+                instance.renderedYaw(), instance.renderSignature(), instance.inventoryContents(),
+                Integer.valueOf(rgb & 0xFFFFFF), instance.useAnimationActive());
         instances.put(colored.id(), colored);
         if (!synchronizeInstance(colored, true)) { instances.put(instance.id(), instance); return false; }
+        save();
+        return true;
+    }
+
+    /**
+     * Toggles animation.use for non-inventory furniture. Inventory furniture keeps the
+     * existing viewer-driven animation semantics.
+     */
+    public boolean toggleUseAnimation(FurnitureInstance requested) {
+        FurnitureInstance instance = requested == null ? null : instances.get(requested.id());
+        if (instance == null) return false;
+        FurnitureDefinition definition = definition(instance.definitionId()).orElse(null);
+        if (definition == null || definition.hasInventory() || definition.animationUseModel() == null) return false;
+
+        FurnitureInstance updated = new FurnitureInstance(instance.id(), instance.definitionId(), instance.location(),
+                instance.yaw(), instance.renderer(), instance.entities(), instance.blocks(), instance.renderedModel(),
+                instance.renderedYaw(), instance.renderSignature(), instance.inventoryContents(), instance.dyeColor(),
+                !instance.useAnimationActive());
+        instances.put(updated.id(), updated);
+        refresh(updated);
         save();
         return true;
     }
@@ -324,7 +345,8 @@ public final class FurnitureManager {
         }
         return new FurnitureInstance(instance.id(), instance.definitionId(), instance.location(), instance.yaw(),
                 instance.renderer(), instance.entities(), instance.blocks(), instance.renderedModel(),
-                instance.renderedYaw(), instance.renderSignature(), items, instance.dyeColor());
+                instance.renderedYaw(), instance.renderSignature(), items, instance.dyeColor(),
+                instance.useAnimationActive());
     }
 
     private static void dropContents(FurnitureInstance instance) {
@@ -573,7 +595,8 @@ public final class FurnitureManager {
                     definition, selected, replacementRenderer.type(), finalBlocks, modelItem);
             FurnitureInstance updated = new FurnitureInstance(instance.id(), instance.definitionId(),
                     instance.location(), instance.yaw(), replacementRenderer.type(), replacement, finalBlocks,
-                    selected.model(), selected.yaw(), appliedSignature, instance.inventoryContents(), instance.dyeColor());
+                    selected.model(), selected.yaw(), appliedSignature, instance.inventoryContents(), instance.dyeColor(),
+                    instance.useAnimationActive());
 
             // Remove the renderer that furniture.yml currently owns before
             // replacing its UUIDs. If any historical renderer cannot be found
@@ -841,7 +864,9 @@ public final class FurnitureManager {
     private FurnitureStateSelector.Selection selection(FurnitureDefinition definition,
                                                                FurnitureInstance instance) {
         FurnitureStateSelector.Selection selected = state(definition, instance.location(), instance.yaw());
-        if (openInventories.containsKey(instance.id()) && definition.animationUseModel() != null) {
+        boolean inventoryAnimation = openInventories.containsKey(instance.id());
+        boolean interactionAnimation = !definition.hasInventory() && instance.useAnimationActive();
+        if ((inventoryAnimation || interactionAnimation) && definition.animationUseModel() != null) {
             return new FurnitureStateSelector.Selection(definition.animationUseModel(), selected.yaw());
         }
         return selected;
@@ -850,7 +875,9 @@ public final class FurnitureManager {
     private void refresh(FurnitureInstance instance) {
         FurnitureDefinition definition = definition(instance.definitionId()).orElse(null);
         if (definition == null) return;
-        boolean animated = openInventories.containsKey(instance.id()) && definition.animationUseModel() != null;
+        boolean animated = definition.animationUseModel() != null
+                && (openInventories.containsKey(instance.id())
+                || (!definition.hasInventory() && instance.useAnimationActive()));
         if (definition.states().isEmpty() && !animated && definition.modelItemId().equals(instance.renderedModel())) return;
         FurnitureStateSelector.Selection selected = selection(definition, instance);
         if (selected.model().equals(instance.renderedModel()) && selected.yaw() == instance.renderedYaw()) return;
@@ -861,7 +888,7 @@ public final class FurnitureManager {
             String signature = renderSignature(definition, selected, instance.renderer(), instance.blocks(), modelItem);
             FurnitureInstance updated = new FurnitureInstance(instance.id(), instance.definitionId(), instance.location(),
                     instance.yaw(), instance.renderer(), replacement, instance.blocks(), selected.model(), selected.yaw(),
-                    signature, instance.inventoryContents(), instance.dyeColor());
+                    signature, instance.inventoryContents(), instance.dyeColor(), instance.useAnimationActive());
             unindex(instance);
             instances.put(updated.id(), updated);
             index(updated);
