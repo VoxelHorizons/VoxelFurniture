@@ -93,6 +93,18 @@ public final class FurnitureManager {
                 ? definitions.parse(item.get()) : Optional.<FurnitureDefinition>empty();
     }
 
+    /**
+     * Resolves the furniture properties belonging to a render/model variant. Unlike definition(),
+     * abstract items are valid here because animation and blockstate models are intentionally
+     * authored as abstract inherited items.
+     */
+    private FurnitureDefinition renderDefinition(ContentID id, FurnitureDefinition fallback) {
+        Optional<ItemDefinition> item = core.getItemManager().getDefinition(id);
+        if (!item.isPresent()) return fallback;
+        Optional<FurnitureDefinition> parsed = definitions.parse(item.get());
+        return parsed.isPresent() ? parsed.get() : fallback;
+    }
+
     public Map<ContentID, FurnitureDefinition> definitions() {
         Map<ContentID, FurnitureDefinition> result = new LinkedHashMap<ContentID, FurnitureDefinition>();
         for (ItemDefinition item : core.getItemRegistry().entries().values()) {
@@ -147,14 +159,15 @@ public final class FurnitureManager {
         FurnitureStateSelector.Selection state = state(definition, location, yaw);
         Integer dyeColor = core.getItemManager().getDyeColor(sourceItem).orElse(null);
         ItemStack modelItem = renderItem(state.model(), dyeColor);
-        FurnitureRenderer renderer = renderers.select(definition.renderer());
-        String signature = renderSignature(definition, state, renderer.type(), collisionBlocks, modelItem);
+        FurnitureDefinition visualDefinition = renderDefinition(state.model(), definition);
+        FurnitureRenderer renderer = renderers.select(visualDefinition.renderer());
+        String signature = renderSignature(visualDefinition, state, renderer.type(), collisionBlocks, modelItem);
         List<FurnitureBlockPosition> placed = new ArrayList<FurnitureBlockPosition>();
         List<UUID> entities = Collections.emptyList();
         FurnitureInstance instance = null;
         try {
             placeBlocks(location.getWorld(), collisionBlocks, placed);
-            entities = renderer.spawn(location, state.yaw(), modelItem, definition);
+            entities = renderer.spawn(location, state.yaw(), modelItem, visualDefinition);
             instance = new FurnitureInstance(UUID.randomUUID(), definition.itemId(), location, yaw,
                     renderer.type(), entities, collisionBlocks, state.model(), state.yaw(), signature,
                     Collections.<ItemStack>emptyList(), dyeColor, false);
@@ -560,12 +573,13 @@ public final class FurnitureManager {
         }
 
         FurnitureStateSelector.Selection selected = selection(definition, instance);
-        FurnitureRenderer replacementRenderer = renderers.select(definition.renderer());
+        FurnitureDefinition visualDefinition = renderDefinition(selected.model(), definition);
+        FurnitureRenderer replacementRenderer = renderers.select(visualDefinition.renderer());
         List<FurnitureBlockPosition> desiredBlocks =
                 resolveBlocks(definition.blocks(), instance.location(), instance.yaw());
         ItemStack modelItem = renderItem(selected.model(), instance.dyeColor());
         String desiredSignature = renderSignature(
-                definition, selected, replacementRenderer.type(), desiredBlocks, modelItem);
+                visualDefinition, selected, replacementRenderer.type(), desiredBlocks, modelItem);
 
         if (!force && desiredSignature.equals(instance.renderSignature()) && rendererEntitiesPresent(instance)) {
             refreshSeat(instance, definition);
@@ -575,7 +589,7 @@ public final class FurnitureManager {
         List<UUID> replacement = Collections.emptyList();
 
         try {
-            replacement = replacementRenderer.spawn(instance.location(), selected.yaw(), modelItem, definition);
+            replacement = replacementRenderer.spawn(instance.location(), selected.yaw(), modelItem, visualDefinition);
 
             List<FurnitureBlockPosition> finalBlocks = instance.blocks();
             if (!sameBlocks(instance.blocks(), desiredBlocks)) {
@@ -592,7 +606,7 @@ public final class FurnitureManager {
             }
 
             String appliedSignature = renderSignature(
-                    definition, selected, replacementRenderer.type(), finalBlocks, modelItem);
+                    visualDefinition, selected, replacementRenderer.type(), finalBlocks, modelItem);
             FurnitureInstance updated = new FurnitureInstance(instance.id(), instance.definitionId(),
                     instance.location(), instance.yaw(), replacementRenderer.type(), replacement, finalBlocks,
                     selected.model(), selected.yaw(), appliedSignature, instance.inventoryContents(), instance.dyeColor(),
@@ -880,19 +894,21 @@ public final class FurnitureManager {
                 || (!definition.hasInventory() && instance.useAnimationActive()));
         if (definition.states().isEmpty() && !animated && definition.modelItemId().equals(instance.renderedModel())) return;
         FurnitureStateSelector.Selection selected = selection(definition, instance);
-        if (selected.model().equals(instance.renderedModel()) && selected.yaw() == instance.renderedYaw()) return;
-        FurnitureRenderer renderer = renderers.select(instance.renderer());
+        FurnitureDefinition visualDefinition = renderDefinition(selected.model(), definition);
+        FurnitureRenderer renderer = renderers.select(visualDefinition.renderer());
         try {
             ItemStack modelItem = renderItem(selected.model(), instance.dyeColor());
-            List<UUID> replacement = renderer.spawn(instance.location(), selected.yaw(), modelItem, definition);
-            String signature = renderSignature(definition, selected, instance.renderer(), instance.blocks(), modelItem);
+            String signature = renderSignature(visualDefinition, selected, renderer.type(), instance.blocks(), modelItem);
+            if (signature.equals(instance.renderSignature()) && renderer.type() == instance.renderer()
+                    && rendererEntitiesPresent(instance)) return;
+            List<UUID> replacement = renderer.spawn(instance.location(), selected.yaw(), modelItem, visualDefinition);
             FurnitureInstance updated = new FurnitureInstance(instance.id(), instance.definitionId(), instance.location(),
-                    instance.yaw(), instance.renderer(), replacement, instance.blocks(), selected.model(), selected.yaw(),
+                    instance.yaw(), renderer.type(), replacement, instance.blocks(), selected.model(), selected.yaw(),
                     signature, instance.inventoryContents(), instance.dyeColor(), instance.useAnimationActive());
             unindex(instance);
             instances.put(updated.id(), updated);
             index(updated);
-            renderer.remove(instance.entities());
+            renderers.select(instance.renderer()).remove(instance.entities());
             save();
             cleanupOriginChunk(instance.location());
         } catch (RuntimeException exception) {
