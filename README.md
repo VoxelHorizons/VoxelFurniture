@@ -91,6 +91,21 @@ A dye interaction takes priority, so recolouring dyeable furniture does not also
 model must reference a renderable VoxelCore item; an abstract item is recommended so it cannot be obtained directly.
 The inventory title uses the furniture item's resolved `display_name`, including legacy colors and VoxelCore font/UI placeholders.
 
+Set `animation.sync_neighbors: true` on persistent non-inventory animations to synchronize connected furniture.
+Right-clicking one opted-in instance chooses the new target state, then applies that same state to the entire contiguous
+group of horizontally face-adjacent, same-height furniture whose definitions also enable `sync_neighbors` and define
+`animation.use`. This intentionally synchronizes state instead of blindly toggling every neighbor, so a mixed group
+becomes consistently open or consistently closed. Diagonal, vertical, non-animated, inventory, and opted-out furniture
+stop propagation.
+
+For example, a curtain wall can use:
+
+```yaml
+        animation:
+          use: voxel:curtain_closed
+          sync_neighbors: true
+```
+
 `animation.close_delay` is measured in server ticks and defaults to `10` (half a second). Opening switches to the
 use model immediately. After the last viewer closes the inventory, VoxelFurniture saves its contents immediately
 but keeps the use model visible for this delay before restoring the normal or blockstate model. Set it to `0` for
@@ -343,6 +358,7 @@ items:
           z: 0.0
         animation:
           use: voxel:curtain_closed
+          sync_neighbors: true
 
   curtain_closed:
     extends: curtain_open
