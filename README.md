@@ -52,7 +52,9 @@ are rejected on servers without display entities; `auto` falls back safely.
 ### Inventories and use animations
 
 Furniture can expose a persistent chest-style inventory. Its size must be a multiple of nine from 9 through 54.
-An optional `animation.use` item selects a different render model while at least one player has that inventory open:
+An optional `animation.use` item selects a different render model while at least one player has that inventory open.
+For furniture without an inventory, the same `animation.use` field acts as a persistent right-click toggle: each
+interaction switches between the normal model and the use model, and the selected state survives restarts:
 
 ```yaml
 items:
@@ -78,12 +80,16 @@ items:
       model: voxel:furniture/basic/bench/oak_bench_open
 ```
 
-Players with `voxelfurniture.inventory` open the inventory by interacting with the furniture. All simultaneous
+Players with `voxelfurniture.inventory` open the inventory by interacting with inventory furniture. All simultaneous
 viewers share the same live inventory. The use model remains active until the last viewer closes it, then the
 furniture returns to its current base or blockstate model. Contents persist in `furniture.yml`, are saved on close
-and shutdown, and drop when the furniture is broken. The animation model must reference a renderable VoxelCore item;
-an abstract item is recommended so it cannot be obtained directly. The inventory title uses the furniture item's
-resolved `display_name`, including legacy colors and VoxelCore font/UI placeholders.
+and shutdown, and drop when the furniture is broken.
+
+For furniture without an inventory, right-clicking toggles `animation.use` on or off instead. This state is persisted
+with the furniture instance and survives restarts, content synchronization, blockstate refreshes, and dye changes.
+A dye interaction takes priority, so recolouring dyeable furniture does not also toggle its use animation. The animation
+model must reference a renderable VoxelCore item; an abstract item is recommended so it cannot be obtained directly.
+The inventory title uses the furniture item's resolved `display_name`, including legacy colors and VoxelCore font/UI placeholders.
 
 `animation.close_delay` is measured in server ticks and defaults to `10` (half a second). Opening switches to the
 use model immediately. After the last viewer closes the inventory, VoxelFurniture saves its contents immediately
@@ -308,16 +314,16 @@ The attached curtain-style setup can be declared once and recoloured without sep
 
 ```yaml
 items:
-  curtain_closed:
+  curtain_open:
     material: PAPER
     display_name: "&fCurtain"
     render:
-      model: voxel:furniture/curtain/curtain_closed
+      model: voxel:furniture/curtain/curtain_open
       custom_model_data:
         color: '#FFFFFF'
       rule:
         model:
-          id: voxel:furniture/curtain/curtain_closed
+          id: voxel:furniture/curtain/curtain_open
           tint: color
     properties:
       dyeable:
@@ -335,20 +341,23 @@ items:
           x: 0.0
           y: 0.0
           z: 0.0
+        animation:
+          use: voxel:curtain_closed
 
-  curtain_open:
-    extends: curtain_closed
+  curtain_closed:
+    extends: curtain_open
     abstract: true
     render:
-      model: voxel:furniture/curtain/curtain_open
+      model: voxel:furniture/curtain/curtain_closed
       rule:
         model:
-          id: voxel:furniture/curtain/curtain_open
+          id: voxel:furniture/curtain/curtain_closed
           tint: color
 ```
 
-Every tinted face in both authored models must use `tintindex: 0`. The open abstract definition inherits the same
-stable colour key, allowing it to be used later as an animated or interaction state without losing the curtain colour.
+Every tinted face in both authored models must use `tintindex: 0`. The closed abstract definition inherits the same
+stable colour key. Because this furniture has no inventory, right-clicking alternates between `curtain_open` and
+`curtain_closed`; the current dye colour is preserved across every transition.
 
 ```yaml
 items:
