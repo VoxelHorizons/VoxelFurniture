@@ -28,6 +28,7 @@ public final class FurnitureDefinition {
     private final List<FurnitureStateRule> states;
     private final ContentID animationUseModel;
     private final int animationCloseDelay;
+    private final boolean animationSyncNeighbors;
     private final int inventorySize;
 
     public FurnitureDefinition(ContentID itemId, ContentID modelItemId, ContentID dropItemId,
@@ -102,6 +103,20 @@ public final class FurnitureDefinition {
                                double offsetX, double offsetY, double offsetZ, float offsetRotation,
                                List<FurnitureBlockDefinition> blocks, List<FurnitureStateRule> states,
                                ContentID animationUseModel, int animationCloseDelay, int inventorySize) {
+        this(itemId, modelItemId, dropItemId, renderer, width, height, scaleX, scaleY, scaleZ,
+                viewDistance, rotationStep, placement, seat, offsetX, offsetY, offsetZ, offsetRotation,
+                blocks, states, animationUseModel, animationCloseDelay, false, inventorySize);
+    }
+
+    public FurnitureDefinition(ContentID itemId, ContentID modelItemId, ContentID dropItemId,
+                               FurnitureRendererType renderer, float width, float height,
+                               float scaleX, float scaleY, float scaleZ,
+                               float viewDistance, float rotationStep, FurniturePlacement placement,
+                               FurnitureSeatDefinition seat,
+                               double offsetX, double offsetY, double offsetZ, float offsetRotation,
+                               List<FurnitureBlockDefinition> blocks, List<FurnitureStateRule> states,
+                               ContentID animationUseModel, int animationCloseDelay,
+                               boolean animationSyncNeighbors, int inventorySize) {
         this.itemId = itemId;
         this.modelItemId = modelItemId;
         this.dropItemId = dropItemId;
@@ -123,6 +138,7 @@ public final class FurnitureDefinition {
         this.states = Collections.unmodifiableList(new ArrayList<FurnitureStateRule>(states));
         this.animationUseModel = animationUseModel;
         this.animationCloseDelay = animationCloseDelay;
+        this.animationSyncNeighbors = animationSyncNeighbors;
         this.inventorySize = inventorySize;
     }
 
@@ -152,6 +168,7 @@ public final class FurnitureDefinition {
     public List<FurnitureStateRule> states() { return states; }
     public ContentID animationUseModel() { return animationUseModel; }
     public int animationCloseDelay() { return animationCloseDelay; }
+    public boolean animationSyncNeighbors() { return animationSyncNeighbors; }
     public int inventorySize() { return inventorySize; }
     public boolean hasInventory() { return inventorySize > 0; }
 }

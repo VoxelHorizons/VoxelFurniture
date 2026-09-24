@@ -78,6 +78,26 @@ public class FurnitureDefinitionParserTest {
         assertEquals(16, definition.animationCloseDelay());
     }
 
+    @Test public void parsesNeighborAnimationSynchronization() {
+        Map<String, Object> animation = new LinkedHashMap<String, Object>();
+        animation.put("use", "voxel:test_closed");
+        animation.put("sync_neighbors", true);
+        Map<String, Object> furniture = new LinkedHashMap<String, Object>();
+        furniture.put("animation", animation);
+
+        assertTrue(parseFurniture(furniture).animationSyncNeighbors());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsNonBooleanNeighborAnimationSynchronization() {
+        Map<String, Object> animation = new LinkedHashMap<String, Object>();
+        animation.put("use", "voxel:test_closed");
+        animation.put("sync_neighbors", "yes");
+        Map<String, Object> furniture = new LinkedHashMap<String, Object>();
+        furniture.put("animation", animation);
+        parseFurniture(furniture);
+    }
+
     @Test public void useAnimationDefaultsToTenTickCloseDelay() {
         Map<String, Object> animation = new LinkedHashMap<String, Object>();
         animation.put("use", "voxel:test_open");
