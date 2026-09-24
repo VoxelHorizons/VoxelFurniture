@@ -237,23 +237,32 @@ public final class FurnitureManager {
     public boolean toggleUseAnimation(FurnitureInstance requested) {
         FurnitureInstance instance = requested == null ? null : instances.get(requested.id());
         if (instance == null) return false;
+        return setUseAnimation(instance, !instance.useAnimationActive());
+    }
+
+    /**
+     * Idempotently sets animation.use for non-inventory furniture. This is intended for
+     * trusted integrations such as automated shop shutters which need an explicit open or
+     * closed state instead of a toggle. Neighbor synchronization follows the same rules as
+     * player interaction when animation.sync_neighbors is enabled.
+     */
+    public boolean setUseAnimation(FurnitureInstance requested, boolean active) {
+        FurnitureInstance instance = requested == null ? null : instances.get(requested.id());
+        if (instance == null) return false;
         FurnitureDefinition definition = definition(instance.definitionId()).orElse(null);
         if (!canToggleUseAnimation(definition)) return false;
 
-        boolean targetState = !instance.useAnimationActive();
-        if (!definition.animationSyncNeighbors()) {
-            FurnitureInstance updated = withUseAnimationState(instance, targetState);
-            instances.put(updated.id(), updated);
-            refresh(updated);
-            save();
-            return true;
-        }
-
-        List<FurnitureInstance> group = synchronizedAnimationGroup(instance);
+        List<FurnitureInstance> group = definition.animationSyncNeighbors()
+                ? synchronizedAnimationGroup(instance)
+                : Collections.singletonList(instance);
+        boolean changed = false;
         for (FurnitureInstance member : group) {
-            FurnitureInstance updated = withUseAnimationState(member, targetState);
-            instances.put(updated.id(), updated);
+            FurnitureInstance current = instances.get(member.id());
+            if (current == null || current.useAnimationActive() == active) continue;
+            instances.put(current.id(), withUseAnimationState(current, active));
+            changed = true;
         }
+        if (!changed) return true;
         for (FurnitureInstance member : group) {
             FurnitureInstance updated = instances.get(member.id());
             if (updated != null) refresh(updated);
