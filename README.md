@@ -359,6 +359,32 @@ Every tinted face in both authored models must use `tintindex: 0`. The closed ab
 stable colour key. Because this furniture has no inventory, right-clicking alternates between `curtain_open` and
 `curtain_closed`; the current dye colour is preserved across every transition.
 
+Animation and blockstate variants also use their resolved inherited **render-time furniture properties**. A child can
+therefore override `renderer`, `hitbox`, `scale`, `view_distance`, or `offset` while inheriting unspecified values
+from its parent. Keep these overrides below `properties.furniture`; placing `offset` directly below `properties`
+creates an unrelated property that VoxelFurniture does not read.
+
+For example, this closed curtain keeps the parent's X/Z/rotation but changes only its Y offset:
+
+```yaml
+  curtain_closed:
+    extends: curtain_open
+    abstract: true
+    render:
+      model: voxel:furniture/basic/curtain/curtain_closed
+      rule:
+        model:
+          id: voxel:furniture/basic/curtain/curtain_closed
+          tint: color
+    properties:
+      furniture:
+        offset:
+          y: -0.5
+```
+
+Collision blocks, placement rules, inventory state, drops, and the concrete furniture identity continue to belong to
+the placed concrete definition; changing a visual variant cannot move or replace its managed collision cells.
+
 ```yaml
 items:
   oak_table:

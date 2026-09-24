@@ -4,6 +4,8 @@ import org.junit.Test;
 import org.voxelhorizons.content.ContentID;
 import org.voxelhorizons.content.item.ItemDefinition;
 import org.voxelhorizons.content.item.ItemType;
+import org.voxelhorizons.content.item.RawItemDefinition;
+import org.voxelhorizons.content.compile.ItemDefinitionCompiler;
 import org.voxelhorizons.furniture.model.FurnitureDefinition;
 import org.voxelhorizons.furniture.model.FurnitureDefinitionParser;
 import org.voxelhorizons.furniture.model.FurnitureRendererType;
@@ -115,6 +117,43 @@ public class FurnitureDefinitionParserTest {
 
         assertEquals(0.25D, definition.offsetX(), 0.000001D);
         assertEquals(-90.0F, definition.offsetRotation(), 0.000001F);
+    }
+
+    @Test public void inheritedFurnitureOffsetAllowsChildAxisOverrides() {
+        ContentID parentId = ContentID.parse("voxel:curtain_open", "voxel");
+        ContentID childId = ContentID.parse("voxel:curtain_closed", "voxel");
+
+        Map<String, Object> parentOffset = new LinkedHashMap<String, Object>();
+        parentOffset.put("x", 0.0D);
+        parentOffset.put("y", 0.5D);
+        parentOffset.put("z", 0.5D);
+        parentOffset.put("rotation", 0.0D);
+        Map<String, Object> parentFurniture = new LinkedHashMap<String, Object>();
+        parentFurniture.put("offset", parentOffset);
+        Map<String, Object> parentProperties = new LinkedHashMap<String, Object>();
+        parentProperties.put("furniture", parentFurniture);
+
+        Map<String, Object> childOffset = new LinkedHashMap<String, Object>();
+        childOffset.put("y", -0.5D);
+        Map<String, Object> childFurniture = new LinkedHashMap<String, Object>();
+        childFurniture.put("offset", childOffset);
+        Map<String, Object> childProperties = new LinkedHashMap<String, Object>();
+        childProperties.put("furniture", childFurniture);
+
+        RawItemDefinition parent = new RawItemDefinition(parentId, null, ItemType.ITEM, "PAPER", "Curtain",
+                Collections.<String>emptyList(), Boolean.FALSE, Boolean.FALSE, null, parentProperties, null);
+        RawItemDefinition child = new RawItemDefinition(childId, parentId, null, null, null,
+                null, null, Boolean.TRUE, null, childProperties, null);
+
+        ItemDefinition resolvedChild = new ItemDefinitionCompiler()
+                .compile(java.util.Arrays.asList(parent, child)).get(childId).get();
+        FurnitureDefinitionParser parser = new FurnitureDefinitionParser(FurnitureRendererType.AUTO, 45.0F);
+        FurnitureDefinition definition = parser.parse(resolvedChild).get();
+
+        assertEquals(0.0D, definition.offsetX(), 0.000001D);
+        assertEquals(-0.5D, definition.offsetY(), 0.000001D);
+        assertEquals(0.5D, definition.offsetZ(), 0.000001D);
+        assertEquals(0.0F, definition.offsetRotation(), 0.000001F);
     }
 
     private static FurnitureDefinition parse(Object scale) {
