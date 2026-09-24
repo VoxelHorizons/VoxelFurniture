@@ -37,8 +37,10 @@ import org.voxelhorizons.furniture.store.FurnitureStore;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Deque;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -228,23 +230,77 @@ public final class FurnitureManager {
     }
 
     /**
-     * Toggles animation.use for non-inventory furniture. Inventory furniture keeps the
-     * existing viewer-driven animation semantics.
+     * Toggles animation.use for non-inventory furniture. When sync_neighbors is enabled,
+     * the clicked furniture's new state is propagated through every horizontally adjacent,
+     * same-height, opted-in animated furniture instance.
      */
     public boolean toggleUseAnimation(FurnitureInstance requested) {
         FurnitureInstance instance = requested == null ? null : instances.get(requested.id());
         if (instance == null) return false;
         FurnitureDefinition definition = definition(instance.definitionId()).orElse(null);
-        if (definition == null || definition.hasInventory() || definition.animationUseModel() == null) return false;
+        if (!canToggleUseAnimation(definition)) return false;
 
-        FurnitureInstance updated = new FurnitureInstance(instance.id(), instance.definitionId(), instance.location(),
-                instance.yaw(), instance.renderer(), instance.entities(), instance.blocks(), instance.renderedModel(),
-                instance.renderedYaw(), instance.renderSignature(), instance.inventoryContents(), instance.dyeColor(),
-                !instance.useAnimationActive());
-        instances.put(updated.id(), updated);
-        refresh(updated);
+        boolean targetState = !instance.useAnimationActive();
+        if (!definition.animationSyncNeighbors()) {
+            FurnitureInstance updated = withUseAnimationState(instance, targetState);
+            instances.put(updated.id(), updated);
+            refresh(updated);
+            save();
+            return true;
+        }
+
+        List<FurnitureInstance> group = synchronizedAnimationGroup(instance);
+        for (FurnitureInstance member : group) {
+            FurnitureInstance updated = withUseAnimationState(member, targetState);
+            instances.put(updated.id(), updated);
+        }
+        for (FurnitureInstance member : group) {
+            FurnitureInstance updated = instances.get(member.id());
+            if (updated != null) refresh(updated);
+        }
         save();
         return true;
+    }
+
+    private boolean canToggleUseAnimation(FurnitureDefinition definition) {
+        return definition != null && !definition.hasInventory() && definition.animationUseModel() != null;
+    }
+
+    private FurnitureInstance withUseAnimationState(FurnitureInstance instance, boolean active) {
+        return new FurnitureInstance(instance.id(), instance.definitionId(), instance.location(),
+                instance.yaw(), instance.renderer(), instance.entities(), instance.blocks(), instance.renderedModel(),
+                instance.renderedYaw(), instance.renderSignature(), instance.inventoryContents(), instance.dyeColor(),
+                active);
+    }
+
+    private List<FurnitureInstance> synchronizedAnimationGroup(FurnitureInstance start) {
+        List<FurnitureInstance> result = new ArrayList<FurnitureInstance>();
+        Set<UUID> visited = new HashSet<UUID>();
+        Deque<FurnitureInstance> pending = new ArrayDeque<FurnitureInstance>();
+        pending.add(start);
+
+        while (!pending.isEmpty()) {
+            FurnitureInstance current = pending.removeFirst();
+            if (!visited.add(current.id())) continue;
+            FurnitureDefinition currentDefinition = definition(current.definitionId()).orElse(null);
+            if (!canToggleUseAnimation(currentDefinition) || !currentDefinition.animationSyncNeighbors()) continue;
+            result.add(current);
+
+            Location location = current.location();
+            int[][] offsets = {{0, -1}, {1, 0}, {0, 1}, {-1, 0}};
+            for (int[] offset : offsets) {
+                UUID id = originIndex.get(new BlockKey(location.getWorld().getUID(),
+                        location.getBlockX() + offset[0], location.getBlockY(),
+                        location.getBlockZ() + offset[1]));
+                FurnitureInstance neighbor = id == null ? null : instances.get(id);
+                if (neighbor == null || visited.contains(neighbor.id())) continue;
+                FurnitureDefinition neighborDefinition = definition(neighbor.definitionId()).orElse(null);
+                if (canToggleUseAnimation(neighborDefinition) && neighborDefinition.animationSyncNeighbors()) {
+                    pending.addLast(neighbor);
+                }
+            }
+        }
+        return result;
     }
 
     public boolean remove(UUID instanceId, boolean drop) {
