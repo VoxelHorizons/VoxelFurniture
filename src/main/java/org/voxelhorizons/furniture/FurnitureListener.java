@@ -190,6 +190,9 @@ public final class FurnitureListener implements Listener {
         FurnitureInteractEvent interaction = new FurnitureInteractEvent(player, instance);
         org.bukkit.Bukkit.getPluginManager().callEvent(interaction);
         if (interaction.isCancelled()) return;
+        FurnitureDefinition definition = furniture.definition(instance.definitionId()).orElse(null);
+        if (definition != null && !definition.hasInventory() && definition.animationUseModel() != null
+                && furniture.toggleUseAnimation(instance)) return;
         if (player.hasPermission("voxelfurniture.inventory") && furniture.openInventory(player, instance)) return;
         if (player.hasPermission("voxelfurniture.sit")) furniture.sit(player, instance);
     }
