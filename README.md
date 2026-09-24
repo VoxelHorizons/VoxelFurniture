@@ -375,6 +375,11 @@ Blockstates require `rotation_step: 90`. Collision blocks are optional and do no
 Plugins can listen for `FurniturePlaceEvent`, `FurnitureBreakEvent`, and `FurnitureInteractEvent`. Place and break
 events are cancellable, providing integration points for protection and gameplay addons.
 
+Trusted addons that restore recorded layouts can call
+`FurnitureManager.place(FurnitureDefinition, Location, float yaw)` to recreate system-owned furniture at an exact
+snapped yaw without requiring a fake player. Player placements continue to fire `FurniturePlaceEvent`; explicit
+system placement intentionally does not.
+
 ## Building
 
 VoxelCore `1.0-SNAPSHOT` must be installed in the local Maven repository first:
