@@ -20,6 +20,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: VoxelHorizons/VoxelCore
+          ref: ${{ github.event_name == 'pull_request' && github.head_ref == 'feature/dyeable-furniture' && 'feature/dyeable-item-tints' || 'main' }}
           path: VoxelCore
 
       - name: Set up Java 25
