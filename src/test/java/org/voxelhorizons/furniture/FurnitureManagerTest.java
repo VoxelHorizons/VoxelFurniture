@@ -5,6 +5,9 @@ import org.bukkit.Material;
 import org.junit.Test;
 import org.voxelhorizons.furniture.model.FurnitureBlockDefinition;
 import org.voxelhorizons.furniture.model.FurnitureBlockPosition;
+import org.voxelhorizons.furniture.model.FurnitureInstance;
+import org.voxelhorizons.furniture.model.FurnitureRendererType;
+import org.voxelhorizons.content.ContentID;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -64,6 +67,20 @@ public class FurnitureManagerTest {
         assertEquals(11, blocks.get(1).x());
         assertEquals(65, blocks.get(1).y());
         assertEquals(20, blocks.get(1).z());
+    }
+
+    @Test public void interactionAnimationStateDefaultsOffAndCanPersistOnInstance() {
+        Location location = new Location(null, 0.5D, 64.0D, 0.5D);
+        FurnitureInstance normal = new FurnitureInstance(UUID.randomUUID(), ContentID.parse("voxel:curtain", "voxel"),
+                location, 0.0F, FurnitureRendererType.ARMOR_STAND, Collections.<UUID>emptyList(),
+                Collections.<FurnitureBlockPosition>emptyList());
+        assertFalse(normal.useAnimationActive());
+
+        FurnitureInstance active = new FurnitureInstance(UUID.randomUUID(), ContentID.parse("voxel:curtain", "voxel"),
+                location, 0.0F, FurnitureRendererType.ARMOR_STAND, Collections.<UUID>emptyList(),
+                Collections.<FurnitureBlockPosition>emptyList(), ContentID.parse("voxel:curtain_closed", "voxel"),
+                0.0F, null, Collections.<org.bukkit.inventory.ItemStack>emptyList(), null, true);
+        assertTrue(active.useAnimationActive());
     }
 
     @Test(expected = IllegalArgumentException.class)

@@ -63,14 +63,15 @@ public final class FurnitureStore {
                     section.contains("rendered_model") ? ContentID.parse(section.getString("rendered_model"), "minecraft") : null,
                     section.contains("rendered_yaw") ? (float) section.getDouble("rendered_yaw") : Float.NaN,
                     section.getString("render_signature"), inventory,
-                    section.contains("dye_color") ? Integer.valueOf(section.getInt("dye_color")) : null));
+                    section.contains("dye_color") ? Integer.valueOf(section.getInt("dye_color")) : null,
+                    section.getBoolean("use_animation_active", false)));
         }
         return result;
     }
 
     public void save(Collection<FurnitureInstance> instances) {
         YamlConfiguration yaml = new YamlConfiguration();
-        yaml.set("schema", 4);
+        yaml.set("schema", 5);
         for (FurnitureInstance instance : instances) {
             String path = "instances." + instance.id();
             Location location = instance.location();
@@ -84,6 +85,7 @@ public final class FurnitureStore {
             if (!Float.isNaN(instance.renderedYaw())) yaml.set(path + ".rendered_yaw", instance.renderedYaw());
             if (instance.renderSignature() != null) yaml.set(path + ".render_signature", instance.renderSignature());
             if (instance.dyeColor() != null) yaml.set(path + ".dye_color", instance.dyeColor());
+            if (instance.useAnimationActive()) yaml.set(path + ".use_animation_active", true);
             yaml.set(path + ".renderer", instance.renderer().name());
             if (!instance.inventoryContents().isEmpty()) {
                 yaml.set(path + ".inventory", instance.inventoryContents());
