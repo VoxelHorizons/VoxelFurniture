@@ -120,7 +120,7 @@ public final class FurnitureManager {
     public Optional<FurnitureInstance> place(Player player, FurnitureDefinition definition, Location location) {
         cleanupOriginChunk(location);
         float yaw = snapYaw(player.getLocation().getYaw(), definition.rotationStep());
-        return place(definition, location, yaw, player);
+        return place(definition, location, yaw, player, player.getInventory().getItemInMainHand());
     }
 
     /**
@@ -130,11 +130,11 @@ public final class FurnitureManager {
      */
     public Optional<FurnitureInstance> place(FurnitureDefinition definition, Location location, float yaw) {
         cleanupOriginChunk(location);
-        return place(definition, location, snapYaw(yaw, definition.rotationStep()), null);
+        return place(definition, location, snapYaw(yaw, definition.rotationStep()), null, null);
     }
 
     private Optional<FurnitureInstance> place(FurnitureDefinition definition, Location location, float yaw,
-                                               Player player) {
+                                               Player player, ItemStack sourceItem) {
         List<FurnitureBlockPosition> collisionBlocks = resolveBlocks(definition.blocks(), location, yaw);
         BlockKey origin = BlockKey.of(location);
         if (originIndex.containsKey(origin) || blockIndex.containsKey(origin)
@@ -145,7 +145,8 @@ public final class FurnitureManager {
             if (event.isCancelled()) return Optional.empty();
         }
         FurnitureStateSelector.Selection state = state(definition, location, yaw);
-        ItemStack modelItem = core.getItemManager().createRenderItem(state.model());
+        Integer dyeColor = core.getItemManager().getDyeColor(sourceItem).orElse(null);
+        ItemStack modelItem = renderItem(state.model(), dyeColor);
         FurnitureRenderer renderer = renderers.select(definition.renderer());
         String signature = renderSignature(definition, state, renderer.type(), collisionBlocks, modelItem);
         List<FurnitureBlockPosition> placed = new ArrayList<FurnitureBlockPosition>();
@@ -155,7 +156,8 @@ public final class FurnitureManager {
             placeBlocks(location.getWorld(), collisionBlocks, placed);
             entities = renderer.spawn(location, state.yaw(), modelItem, definition);
             instance = new FurnitureInstance(UUID.randomUUID(), definition.itemId(), location, yaw,
-                    renderer.type(), entities, collisionBlocks, state.model(), state.yaw(), signature);
+                    renderer.type(), entities, collisionBlocks, state.model(), state.yaw(), signature,
+                    Collections.<ItemStack>emptyList(), dyeColor);
             instances.put(instance.id(), instance);
             index(instance);
             save();
@@ -187,12 +189,27 @@ public final class FurnitureManager {
         unindex(instance);
         refreshAround(instance.location());
         if (definition != null && player.getGameMode() != GameMode.CREATIVE) {
-            instance.location().getWorld().dropItemNaturally(instance.location(),
-                    core.getItemManager().createItem(definition.dropItemId()));
+            instance.location().getWorld().dropItemNaturally(instance.location(), dropItem(definition, instance));
         }
         dropContents(instance);
         save();
         cleanupOriginChunk(instance.location());
+        return true;
+    }
+
+    /** Recolours one placed furniture instance and rebuilds its active model immediately. */
+    public boolean dye(FurnitureInstance requested, int rgb) {
+        FurnitureInstance instance = requested == null ? null : instances.get(requested.id());
+        if (instance == null) return false;
+        FurnitureDefinition definition = definition(instance.definitionId()).orElse(null);
+        if (definition == null || !core.getItemManager().isDyeable(core.getItemManager().createItem(definition.itemId())))
+            return false;
+        FurnitureInstance colored = new FurnitureInstance(instance.id(), instance.definitionId(), instance.location(),
+                instance.yaw(), instance.renderer(), instance.entities(), instance.blocks(), instance.renderedModel(),
+                instance.renderedYaw(), instance.renderSignature(), instance.inventoryContents(), Integer.valueOf(rgb & 0xFFFFFF));
+        instances.put(colored.id(), colored);
+        if (!synchronizeInstance(colored, true)) { instances.put(instance.id(), instance); return false; }
+        save();
         return true;
     }
 
@@ -211,7 +228,7 @@ public final class FurnitureManager {
         if (drop) {
             FurnitureDefinition definition = definition(instance.definitionId()).orElse(null);
             if (definition != null) instance.location().getWorld().dropItemNaturally(instance.location(),
-                    core.getItemManager().createItem(definition.dropItemId()));
+                    dropItem(definition, instance));
             dropContents(instance);
         }
         save();
@@ -307,7 +324,7 @@ public final class FurnitureManager {
         }
         return new FurnitureInstance(instance.id(), instance.definitionId(), instance.location(), instance.yaw(),
                 instance.renderer(), instance.entities(), instance.blocks(), instance.renderedModel(),
-                instance.renderedYaw(), instance.renderSignature(), items);
+                instance.renderedYaw(), instance.renderSignature(), items, instance.dyeColor());
     }
 
     private static void dropContents(FurnitureInstance instance) {
@@ -316,6 +333,18 @@ public final class FurnitureManager {
                 instance.location().getWorld().dropItemNaturally(instance.location(), item);
             }
         }
+    }
+
+    private ItemStack renderItem(ContentID model, Integer dyeColor) {
+        ItemStack item = core.getItemManager().createRenderItem(model);
+        return dyeColor == null || !core.getItemManager().isDyeable(item)
+                ? item : core.getItemManager().setDyeColor(item, dyeColor.intValue());
+    }
+
+    private ItemStack dropItem(FurnitureDefinition definition, FurnitureInstance instance) {
+        ItemStack item = core.getItemManager().createItem(definition.dropItemId());
+        return instance.dyeColor() == null || !core.getItemManager().isDyeable(item)
+                ? item : core.getItemManager().setDyeColor(item, instance.dyeColor().intValue());
     }
 
     public boolean sit(Player player, FurnitureInstance instance) {
@@ -512,7 +541,7 @@ public final class FurnitureManager {
         FurnitureRenderer replacementRenderer = renderers.select(definition.renderer());
         List<FurnitureBlockPosition> desiredBlocks =
                 resolveBlocks(definition.blocks(), instance.location(), instance.yaw());
-        ItemStack modelItem = core.getItemManager().createRenderItem(selected.model());
+        ItemStack modelItem = renderItem(selected.model(), instance.dyeColor());
         String desiredSignature = renderSignature(
                 definition, selected, replacementRenderer.type(), desiredBlocks, modelItem);
 
@@ -544,7 +573,7 @@ public final class FurnitureManager {
                     definition, selected, replacementRenderer.type(), finalBlocks, modelItem);
             FurnitureInstance updated = new FurnitureInstance(instance.id(), instance.definitionId(),
                     instance.location(), instance.yaw(), replacementRenderer.type(), replacement, finalBlocks,
-                    selected.model(), selected.yaw(), appliedSignature, instance.inventoryContents());
+                    selected.model(), selected.yaw(), appliedSignature, instance.inventoryContents(), instance.dyeColor());
 
             // Remove the renderer that furniture.yml currently owns before
             // replacing its UUIDs. If any historical renderer cannot be found
@@ -827,12 +856,12 @@ public final class FurnitureManager {
         if (selected.model().equals(instance.renderedModel()) && selected.yaw() == instance.renderedYaw()) return;
         FurnitureRenderer renderer = renderers.select(instance.renderer());
         try {
-            ItemStack modelItem = core.getItemManager().createRenderItem(selected.model());
+            ItemStack modelItem = renderItem(selected.model(), instance.dyeColor());
             List<UUID> replacement = renderer.spawn(instance.location(), selected.yaw(), modelItem, definition);
             String signature = renderSignature(definition, selected, instance.renderer(), instance.blocks(), modelItem);
             FurnitureInstance updated = new FurnitureInstance(instance.id(), instance.definitionId(), instance.location(),
                     instance.yaw(), instance.renderer(), replacement, instance.blocks(), selected.model(), selected.yaw(),
-                    signature, instance.inventoryContents());
+                    signature, instance.inventoryContents(), instance.dyeColor());
             unindex(instance);
             instances.put(updated.id(), updated);
             index(updated);
