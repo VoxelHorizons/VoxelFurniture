@@ -69,7 +69,7 @@ public final class FurniturePickListener implements Listener {
 
                                 int targetSlot = ((Number) getTargetSlot.invoke(event)).intValue();
                                 setCancelled.invoke(event, true);
-                                schedulePick(player, instance.get().definitionId(), targetSlot);
+                                schedulePick(player, instance.get(), targetSlot);
                             } catch (IllegalAccessException exception) {
                                 throw new EventException(exception);
                             } catch (InvocationTargetException exception) {
@@ -86,17 +86,19 @@ public final class FurniturePickListener implements Listener {
         }
     }
 
-    private void schedulePick(final Player player, final ContentID furnitureId, final int targetSlot) {
+    private void schedulePick(final Player player, final FurnitureInstance instance, final int targetSlot) {
         plugin.getServer().getScheduler().runTask(plugin, new Runnable() {
             @Override public void run() {
                 if (!player.isOnline() || player.getGameMode() != GameMode.CREATIVE) return;
-                int sourceSlot = findFurniture(player, furnitureId);
+                int sourceSlot = findFurniture(player, instance.definitionId(), instance.dyeColor());
                 if (sourceSlot >= 0 && sourceSlot != targetSlot) {
                     ItemStack target = player.getInventory().getItem(targetSlot);
                     player.getInventory().setItem(targetSlot, player.getInventory().getItem(sourceSlot));
                     player.getInventory().setItem(sourceSlot, target);
                 } else if (sourceSlot < 0) {
-                    player.getInventory().setItem(targetSlot, core.getItemManager().createItem(furnitureId));
+                    ItemStack item = core.getItemManager().createItem(instance.definitionId());
+                    if (instance.dyeColor() != null) item = core.getItemManager().setDyeColor(item, instance.dyeColor().intValue());
+                    player.getInventory().setItem(targetSlot, item);
                 }
                 player.getInventory().setHeldItemSlot(targetSlot);
                 player.updateInventory();
@@ -104,12 +106,15 @@ public final class FurniturePickListener implements Listener {
         });
     }
 
-    private int findFurniture(Player player, ContentID furnitureId) {
+    private int findFurniture(Player player, ContentID furnitureId, Integer color) {
         for (int slot = 0; slot < 36; slot++) {
             ItemStack item = player.getInventory().getItem(slot);
             if (item == null) continue;
             Optional<ContentID> id = core.getItemManager().identify(item);
-            if (id.isPresent() && id.get().equals(furnitureId)) return slot;
+            if (id.isPresent() && id.get().equals(furnitureId)) {
+                Integer itemColor = core.getItemManager().getDyeColor(item).orElse(null);
+                if (color == null ? itemColor == null : color.equals(itemColor)) return slot;
+            }
         }
         return -1;
     }
