@@ -26,6 +26,7 @@ import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.voxelhorizons.VoxelCore;
 import org.voxelhorizons.content.ContentID;
+import org.voxelhorizons.item.DyeableItemListener;
 import org.voxelhorizons.furniture.event.FurnitureInteractEvent;
 import org.voxelhorizons.furniture.model.FurnitureDefinition;
 import org.voxelhorizons.furniture.model.FurnitureInstance;
@@ -89,6 +90,7 @@ public final class FurnitureListener implements Listener {
                 furniture.breakFurniture(event.getPlayer(), instance.get());
             }
         } else if (event.getAction() == org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK) {
+            if (tryDye(event.getPlayer(), instance.get(), event.getItem())) { event.setCancelled(true); return; }
             FurnitureDefinition definition = furniture.definition(instance.get().definitionId()).orElse(null);
             if (allowsBlockPlacement(event.getPlayer(), event.getItem(), definition)) return;
             event.setCancelled(true);
@@ -174,8 +176,10 @@ public final class FurnitureListener implements Listener {
     public void onInteract(PlayerInteractEntityEvent event) {
         Optional<FurnitureInstance> instance = furniture.byEntity(event.getRightClicked().getUniqueId());
         if (!instance.isPresent()) return;
+        ItemStack held = event.getPlayer().getInventory().getItemInMainHand();
+        if (tryDye(event.getPlayer(), instance.get(), held)) { event.setCancelled(true); return; }
         FurnitureDefinition definition = furniture.definition(instance.get().definitionId()).orElse(null);
-        if (allowsBlockPlacement(event.getPlayer(), event.getPlayer().getInventory().getItemInMainHand(), definition)) {
+        if (allowsBlockPlacement(event.getPlayer(), held, definition)) {
             return;
         }
         event.setCancelled(true);
@@ -188,6 +192,17 @@ public final class FurnitureListener implements Listener {
         if (interaction.isCancelled()) return;
         if (player.hasPermission("voxelfurniture.inventory") && furniture.openInventory(player, instance)) return;
         if (player.hasPermission("voxelfurniture.sit")) furniture.sit(player, instance);
+    }
+
+    private boolean tryDye(Player player, FurnitureInstance instance, ItemStack held) {
+        Integer color = DyeableItemListener.dyeColor(held);
+        if (color == null || !player.hasPermission("voxelfurniture.dye")) return false;
+        if (!furniture.dye(instance, color.intValue())) return false;
+        if (player.getGameMode() != org.bukkit.GameMode.CREATIVE) {
+            if (held.getAmount() <= 1) player.getInventory().setItemInMainHand(null);
+            else held.setAmount(held.getAmount() - 1);
+        }
+        return true;
     }
 
     @EventHandler
