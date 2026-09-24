@@ -11,6 +11,8 @@ commands:
     permission: voxelfurniture.use
 
 permissions:
+  voxelfurniture.dye:
+    default: true
   voxelfurniture.use:
     default: true
   voxelfurniture.place:

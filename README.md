@@ -298,6 +298,58 @@ its drop and Creative middle-click remain the concrete `oak_table` item. Variant
 when they have a material and `render.model`; VoxelCore allocates their models but still rejects giving them.
 This feature requires VoxelCore with abstract render allocations and `createRenderItem` support.
 
+## Dyeable furniture (Minecraft 1.21.4+)
+
+VoxelFurniture preserves VoxelCore's per-item dye colour when furniture is placed, re-rendered, animated, persisted,
+broken, or picked in Creative. Right-click placed dyeable furniture with a vanilla dye to recolour it. Survival
+consumes one dye; Creative does not. The player needs `voxelfurniture.dye`, granted by default.
+
+The attached curtain-style setup can be declared once and recoloured without separate items or models per colour:
+
+```yaml
+items:
+  curtain_closed:
+    material: PAPER
+    display_name: "&fCurtain"
+    render:
+      model: voxel:furniture/curtain/curtain_closed
+      custom_model_data:
+        color: '#FFFFFF'
+      rule:
+        model:
+          id: voxel:furniture/curtain/curtain_closed
+          tint: color
+    properties:
+      dyeable:
+        key: color
+        color: '#FFFFFF'
+      furniture:
+        renderer: auto
+        placement: ALL
+        hitbox:
+          width: 1.0
+          height: 1.0
+        scale: 1.0
+        rotation_step: 90
+        offset:
+          x: 0.0
+          y: 0.0
+          z: 0.0
+
+  curtain_open:
+    extends: curtain_closed
+    abstract: true
+    render:
+      model: voxel:furniture/curtain/curtain_open
+      rule:
+        model:
+          id: voxel:furniture/curtain/curtain_open
+          tint: color
+```
+
+Every tinted face in both authored models must use `tintindex: 0`. The open abstract definition inherits the same
+stable colour key, allowing it to be used later as an animated or interaction state without losing the curtain colour.
+
 ```yaml
 items:
   oak_table:
