@@ -16,7 +16,7 @@ import java.util.Set;
 
 public final class FurnitureDefinitionParser {
     private static final Set<String> KEYS = new HashSet<String>(Arrays.asList(
-            "renderer", "model_item", "drop", "hitbox", "scale", "view_distance", "rotation_step", "placement", "seat", "offset", "blocks", "blockstates", "animation", "inventory"
+            "renderer", "model_item", "drop", "hitbox", "scale", "view_distance", "rotation_step", "placement", "seat", "offset", "blocks", "blockstates", "animation", "idle_animation", "display_parts", "inventory"
     ));
     private static final Set<String> HITBOX_KEYS = new HashSet<String>(Arrays.asList("width", "height", "offset"));
     private static final Set<String> HITBOX_OFFSET_KEYS = new HashSet<String>(Arrays.asList("x", "y", "z"));
@@ -25,6 +25,12 @@ public final class FurnitureDefinitionParser {
     private static final Set<String> SEAT_KEYS = new HashSet<String>(Arrays.asList("x", "y", "z", "yaw"));
     private static final Set<String> ANIMATION_KEYS = new HashSet<String>(Arrays.asList("use", "close_delay", "sync_neighbors"));
     private static final Set<String> INVENTORY_KEYS = new HashSet<String>(Arrays.asList("size"));
+    private static final Set<String> IDLE_KEYS = new HashSet<String>(Arrays.asList("bob", "spin"));
+    private static final Set<String> BOB_KEYS = new HashSet<String>(Arrays.asList("amplitude", "period_ticks"));
+    private static final Set<String> SPIN_KEYS = new HashSet<String>(Arrays.asList("degrees_per_tick"));
+    private static final Set<String> PART_KEYS = new HashSet<String>(Arrays.asList(
+            "type", "model_item", "text", "billboard", "offset", "scale", "bob", "spin"));
+    private static final Set<String> PART_OFFSET_KEYS = new HashSet<String>(Arrays.asList("x", "y", "z"));
     private static final Set<String> BLOCK_KEYS = new HashSet<String>(Arrays.asList("x", "y", "z", "material"));
     private static final Set<String> STATE_KEYS = new HashSet<String>(Arrays.asList(
             "neighbors", "absent", "model_item", "rotation", "rotate", "relative", "aligned_only", "neighbor_facing"));
@@ -105,6 +111,73 @@ public final class FurnitureDefinitionParser {
             animationSyncNeighbors = Boolean.TRUE.equals(syncNeighbors);
         }
 
+        FurnitureIdleAnimationDefinition idleAnimation = null;
+        if (map.containsKey("idle_animation")) {
+            Map<?, ?> idle = nested(item, map.get("idle_animation"), "idle_animation");
+            rejectUnknown(item, idle, IDLE_KEYS, "idle_animation");
+            double bobAmplitude = 0.0D;
+            int bobPeriodTicks = 40;
+            float spinDegreesPerTick = 0.0F;
+            if (idle.containsKey("bob")) {
+                Map<?, ?> bob = nested(item, idle.get("bob"), "idle_animation.bob");
+                rejectUnknown(item, bob, BOB_KEYS, "idle_animation.bob");
+                bobAmplitude = number(item, bob.get("amplitude"), 0.0D, "idle_animation.bob.amplitude");
+                bobPeriodTicks = integer(item, bob.get("period_ticks"), 40, "idle_animation.bob.period_ticks");
+                if (bobPeriodTicks <= 0) throw invalid(item, "idle_animation.bob.period_ticks must be greater than zero");
+            }
+            if (idle.containsKey("spin")) {
+                Map<?, ?> spin = nested(item, idle.get("spin"), "idle_animation.spin");
+                rejectUnknown(item, spin, SPIN_KEYS, "idle_animation.spin");
+                spinDegreesPerTick = (float) number(item, spin.get("degrees_per_tick"), 0.0D,
+                        "idle_animation.spin.degrees_per_tick");
+            }
+            idleAnimation = new FurnitureIdleAnimationDefinition(bobAmplitude, bobPeriodTicks, spinDegreesPerTick);
+        }
+
+        List<FurnitureDisplayPartDefinition> displayParts = Collections.emptyList();
+        if (map.containsKey("display_parts")) {
+            Map<?, ?> parts = nested(item, map.get("display_parts"), "display_parts");
+            List<FurnitureDisplayPartDefinition> parsed = new ArrayList<FurnitureDisplayPartDefinition>();
+            for (Map.Entry<?, ?> entry : parts.entrySet()) {
+                String id = String.valueOf(entry.getKey());
+                if (!id.matches("[a-z0-9_-]+")) throw invalid(item, "display_parts ids use lowercase letters, numbers, _ and -");
+                Map<?, ?> part = nested(item, entry.getValue(), "display_parts." + id);
+                rejectUnknown(item, part, PART_KEYS, "display_parts." + id);
+                String typeName = part.get("type") == null ? "text" : String.valueOf(part.get("type")).toLowerCase(java.util.Locale.ROOT);
+                FurnitureDisplayPartDefinition.Type type;
+                if ("text".equals(typeName)) type = FurnitureDisplayPartDefinition.Type.TEXT;
+                else if ("item".equals(typeName)) type = FurnitureDisplayPartDefinition.Type.ITEM;
+                else throw invalid(item, "display_parts." + id + ".type must be text or item");
+                ContentID partModel = null;
+                String text = null;
+                if (type == FurnitureDisplayPartDefinition.Type.TEXT) {
+                    if (!(part.get("text") instanceof String)) throw invalid(item, "display_parts." + id + ".text is required");
+                    text = (String) part.get("text");
+                } else {
+                    if (!(part.get("model_item") instanceof String)) throw invalid(item, "display_parts." + id + ".model_item is required");
+                    partModel = contentId(item, part.get("model_item"), item.id(), "display_parts." + id + ".model_item");
+                }
+                String billboard = part.get("billboard") == null ? "FIXED" : String.valueOf(part.get("billboard")).toUpperCase(java.util.Locale.ROOT);
+                if (!Arrays.asList("FIXED", "VERTICAL", "HORIZONTAL", "CENTER").contains(billboard))
+                    throw invalid(item, "display_parts." + id + ".billboard must be FIXED, VERTICAL, HORIZONTAL or CENTER");
+                double px = 0.0D, py = 0.0D, pz = 0.0D;
+                if (part.containsKey("offset")) {
+                    Map<?, ?> offset = nested(item, part.get("offset"), "display_parts." + id + ".offset");
+                    rejectUnknown(item, offset, PART_OFFSET_KEYS, "display_parts." + id + ".offset");
+                    px = number(item, offset.get("x"), 0.0D, "display_parts." + id + ".offset.x");
+                    py = number(item, offset.get("y"), 0.0D, "display_parts." + id + ".offset.y");
+                    pz = number(item, offset.get("z"), 0.0D, "display_parts." + id + ".offset.z");
+                }
+                float partScale = positive(item, part.get("scale"), 1.0F, "display_parts." + id + ".scale");
+                Object bob = part.get("bob"), spin = part.get("spin");
+                if (!(bob == null || bob instanceof Boolean)) throw invalid(item, "display_parts." + id + ".bob must be a boolean");
+                if (!(spin == null || spin instanceof Boolean)) throw invalid(item, "display_parts." + id + ".spin must be a boolean");
+                parsed.add(new FurnitureDisplayPartDefinition(id, type, partModel, text, billboard, px, py, pz,
+                        partScale, !Boolean.FALSE.equals(bob), Boolean.TRUE.equals(spin)));
+            }
+            displayParts = parsed;
+        }
+
         int inventorySize = 0;
         if (map.containsKey("inventory")) {
             Map<?, ?> inventory = nested(item, map.get("inventory"), "inventory");
@@ -139,7 +212,7 @@ public final class FurnitureDefinitionParser {
                 hitboxOffsetX, hitboxOffsetY, hitboxOffsetZ,
                 scale[0], scale[1], scale[2], viewDistance, rotationStep, placement, seat,
                 x, y, z, offsetRotation, blocks, states, animationUseModel, animationCloseDelay,
-                animationSyncNeighbors, inventorySize));
+                animationSyncNeighbors, idleAnimation, displayParts, inventorySize));
     }
 
     static float[] scale(ItemDefinition item, Object raw) {

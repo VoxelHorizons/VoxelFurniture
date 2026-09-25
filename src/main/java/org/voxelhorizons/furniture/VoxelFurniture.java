@@ -30,7 +30,7 @@ public final class VoxelFurniture extends JavaPlugin {
                     FurnitureRendererType.AUTO);
             float rotationStep = (float) getConfig().getDouble("default-rotation-step", 45.0D);
             FurnitureDefinitionParser parser = new FurnitureDefinitionParser(renderer, rotationStep);
-            furnitureManager = new FurnitureManager(this, core, parser, new FurnitureRendererSelector(),
+            furnitureManager = new FurnitureManager(this, core, parser, new FurnitureRendererSelector(core),
                     new FurnitureStore(getDataFolder().toPath().resolve("furniture.yml")));
             furnitureManager.validateDefinitions();
             furnitureManager.synchronizeDefinitions();

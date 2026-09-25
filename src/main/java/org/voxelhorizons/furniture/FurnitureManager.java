@@ -22,6 +22,8 @@ import org.voxelhorizons.furniture.event.FurnitureBreakEvent;
 import org.voxelhorizons.furniture.event.FurniturePlaceEvent;
 import org.voxelhorizons.furniture.inventory.FurnitureInventoryHolder;
 import org.voxelhorizons.furniture.model.FurnitureDefinition;
+import org.voxelhorizons.furniture.model.FurnitureDisplayPartDefinition;
+import org.voxelhorizons.furniture.model.FurnitureIdleAnimationDefinition;
 import org.voxelhorizons.furniture.model.FurnitureBlockDefinition;
 import org.voxelhorizons.furniture.model.FurnitureBlockPosition;
 import org.voxelhorizons.furniture.model.FurnitureDefinitionParser;
@@ -32,6 +34,7 @@ import org.voxelhorizons.furniture.model.FurnitureStateRule;
 import org.voxelhorizons.furniture.render.EntitySupport;
 import org.voxelhorizons.furniture.render.FurnitureRenderer;
 import org.voxelhorizons.furniture.render.FurnitureRendererSelector;
+import org.voxelhorizons.furniture.render.FurnitureRenderTransform;
 import org.voxelhorizons.furniture.store.FurnitureStore;
 
 import java.nio.charset.StandardCharsets;
@@ -69,6 +72,7 @@ public final class FurnitureManager {
     private final Set<UUID> forcedSynchronization = new HashSet<UUID>();
     private long contentRevision;
     private long inventoryCloseSequence;
+    private long animationTick;
 
     public FurnitureManager(Plugin plugin, VoxelCore core, FurnitureDefinitionParser definitions,
                             FurnitureRendererSelector renderers, FurnitureStore store) {
@@ -87,6 +91,9 @@ public final class FurnitureManager {
                 synchronizeIfContentChanged();
             }
         }, 20L, 20L);
+        plugin.getServer().getScheduler().runTaskTimer(plugin, new Runnable() {
+            @Override public void run() { animateIdleDisplays(); }
+        }, 1L, 1L);
     }
 
     public Optional<FurnitureDefinition> definition(ContentID id) {
@@ -646,7 +653,8 @@ public final class FurnitureManager {
         String desiredSignature = renderSignature(
                 visualDefinition, selected, replacementRenderer.type(), desiredBlocks, modelItem);
 
-        if (!force && desiredSignature.equals(instance.renderSignature()) && rendererEntitiesPresent(instance)) {
+        if (!force && desiredSignature.equals(instance.renderSignature())
+                && rendererEntitiesPresent(instance, visualDefinition)) {
             refreshSeat(instance, definition);
             return true;
         }
@@ -695,8 +703,9 @@ public final class FurnitureManager {
         }
     }
 
-    private boolean rendererEntitiesPresent(FurnitureInstance instance) {
-        int expected = instance.renderer() == org.voxelhorizons.furniture.model.FurnitureRendererType.DISPLAY ? 2 : 1;
+    private boolean rendererEntitiesPresent(FurnitureInstance instance, FurnitureDefinition definition) {
+        int expected = instance.renderer() == org.voxelhorizons.furniture.model.FurnitureRendererType.DISPLAY
+                ? 2 + definition.displayParts().size() : 1;
         if (instance.entities().size() != expected) return false;
         for (UUID id : instance.entities()) {
             Entity entity = EntitySupport.find(id);
@@ -721,6 +730,19 @@ public final class FurnitureManager {
                 .append(definition.offsetZ()).append('|').append(definition.offsetRotation()).append('|')
                 .append(modelItem.serialize().toString());
 
+        FurnitureIdleAnimationDefinition idle = definition.idleAnimation();
+        if (idle != null) {
+            value.append("|idle:").append(idle.bobAmplitude()).append(',')
+                    .append(idle.bobPeriodTicks()).append(',').append(idle.spinDegreesPerTick());
+        }
+        for (FurnitureDisplayPartDefinition part : definition.displayParts()) {
+            value.append("|part:").append(part.id()).append(',').append(part.type()).append(',')
+                    .append(part.modelItem()).append(',').append(part.text()).append(',')
+                    .append(part.billboard()).append(',').append(part.offsetX()).append(',')
+                    .append(part.offsetY()).append(',').append(part.offsetZ()).append(',')
+                    .append(part.scale()).append(',').append(part.bob()).append(',').append(part.spin());
+        }
+
         for (FurnitureBlockPosition block : blocks) {
             value.append('|').append(block.x()).append(',').append(block.y()).append(',').append(block.z())
                     .append(',').append(block.material().name());
@@ -741,6 +763,49 @@ public final class FurnitureManager {
             return hex.toString();
         } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException("SHA-256 is unavailable", exception);
+        }
+    }
+
+    private void animateIdleDisplays() {
+        animationTick++;
+        for (FurnitureInstance instance : new ArrayList<FurnitureInstance>(instances.values())) {
+            if (instance.renderer() != org.voxelhorizons.furniture.model.FurnitureRendererType.DISPLAY
+                    || !isOriginChunkLoaded(instance)) continue;
+            FurnitureDefinition base = definition(instance.definitionId()).orElse(null);
+            if (base == null) continue;
+            FurnitureDefinition visual = renderDefinition(instance.renderedModel(), base);
+            FurnitureIdleAnimationDefinition idle = visual.idleAnimation();
+            if (idle == null || !idle.enabled()) continue;
+
+            double bob = idle.bobAmplitude() == 0.0D ? 0.0D
+                    : Math.sin((Math.PI * 2.0D * animationTick) / idle.bobPeriodTicks()) * idle.bobAmplitude();
+            float spin = idle.spinDegreesPerTick() * animationTick;
+
+            for (UUID id : instance.entities()) {
+                Entity entity = EntitySupport.find(id);
+                if (entity == null) continue;
+                Set<String> tags = entity.getScoreboardTags();
+                if (tags.contains("voxelfurniture-main")) {
+                    Location target = FurnitureRenderTransform.applyLocalOffset(instance.location(), instance.renderedYaw(),
+                            visual.offsetX(), visual.offsetY() + bob, visual.offsetZ(), visual.offsetRotation() + spin);
+                    entity.teleport(target);
+                } else if (tags.contains("voxelfurniture-interaction")) {
+                    Location target = FurnitureRenderTransform.applyLocalOffset(instance.location(), instance.renderedYaw(),
+                            visual.hitboxOffsetX(), visual.hitboxOffsetY() + visual.height() / 2.0D + bob,
+                            visual.hitboxOffsetZ());
+                    entity.teleport(target);
+                } else {
+                    for (FurnitureDisplayPartDefinition part : visual.displayParts()) {
+                        if (!tags.contains("voxelfurniture-part-" + part.id())) continue;
+                        double partBob = part.bob() ? bob : 0.0D;
+                        float partSpin = part.spin() ? spin : 0.0F;
+                        Location target = FurnitureRenderTransform.applyLocalOffset(instance.location(),
+                                instance.renderedYaw(), part.offsetX(), part.offsetY() + partBob, part.offsetZ(), partSpin);
+                        entity.teleport(target);
+                        break;
+                    }
+                }
+            }
         }
     }
 
@@ -857,7 +922,19 @@ public final class FurnitureManager {
                 throw new IllegalArgumentException("Furniture " + furniture.itemId() + " references unknown drop "
                         + furniture.dropItemId());
             }
-            renderers.select(furniture.renderer());
+            FurnitureRenderer selectedRenderer = renderers.select(furniture.renderer());
+            if ((!furniture.displayParts().isEmpty()
+                    || (furniture.idleAnimation() != null && furniture.idleAnimation().enabled()))
+                    && selectedRenderer.type() != org.voxelhorizons.furniture.model.FurnitureRendererType.DISPLAY) {
+                throw new IllegalArgumentException("Furniture " + furniture.itemId()
+                        + " display_parts/idle_animation require display entities (Minecraft 1.19.4+)");
+            }
+            for (FurnitureDisplayPartDefinition part : furniture.displayParts()) {
+                if (part.type() == FurnitureDisplayPartDefinition.Type.ITEM && !renderable(part.modelItem())) {
+                    throw new IllegalArgumentException("Furniture " + furniture.itemId()
+                            + " references unrenderable display part model " + part.modelItem());
+                }
+            }
             for (FurnitureStateRule rule : furniture.states()) {
                 if (!renderable(rule.model())) throw new IllegalArgumentException("Furniture " + furniture.itemId()
                         + " references unrenderable blockstate model " + rule.model());
@@ -967,7 +1044,7 @@ public final class FurnitureManager {
             ItemStack modelItem = renderItem(selected.model(), instance.dyeColor());
             String signature = renderSignature(visualDefinition, selected, renderer.type(), instance.blocks(), modelItem);
             if (signature.equals(instance.renderSignature()) && renderer.type() == instance.renderer()
-                    && rendererEntitiesPresent(instance)) return;
+                    && rendererEntitiesPresent(instance, visualDefinition)) return;
             List<UUID> replacement = renderer.spawn(instance.location(), selected.yaw(), modelItem, visualDefinition);
             FurnitureInstance updated = new FurnitureInstance(instance.id(), instance.definitionId(), instance.location(),
                     instance.yaw(), renderer.type(), replacement, instance.blocks(), selected.model(), selected.yaw(),

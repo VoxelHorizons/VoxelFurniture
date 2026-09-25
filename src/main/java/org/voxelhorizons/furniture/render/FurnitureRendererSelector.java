@@ -1,10 +1,15 @@
 package org.voxelhorizons.furniture.render;
 
+import org.voxelhorizons.VoxelCore;
 import org.voxelhorizons.furniture.model.FurnitureRendererType;
 
 public final class FurnitureRendererSelector {
     private final FurnitureRenderer armorStand = new ArmorStandFurnitureRenderer();
-    private final FurnitureRenderer display = new DisplayFurnitureRenderer();
+    private final FurnitureRenderer display;
+
+    public FurnitureRendererSelector(VoxelCore core) {
+        this.display = new DisplayFurnitureRenderer(core);
+    }
 
     public FurnitureRenderer select(FurnitureRendererType requested) {
         if (requested == FurnitureRendererType.ARMOR_STAND) return armorStand;
