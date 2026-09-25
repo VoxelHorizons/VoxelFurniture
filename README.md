@@ -301,6 +301,82 @@ The shell model should contain the visible outer frame and the inward-facing/bac
 should not be baked into the JSON model; keeping it as the billboarded text part is what allows different players on
 different sides of the cube to all see it facing them correctly.
 
+### Interaction commands
+
+Furniture can consume a normal right-click and dispatch one or more commands. A string entry runs as the player:
+
+```yaml
+        interaction:
+          commands:
+            - "help getting-started"
+```
+
+Use the mapping form when a command should run from console:
+
+```yaml
+        interaction:
+          commands:
+            - command: "tutorial open {player} hub"
+              executor: CONSOLE
+            - command: "help shops"
+              executor: PLAYER
+```
+
+Leading `/` characters are optional and are removed when content is parsed. Supported executors are `PLAYER`
+(the default) and `CONSOLE`. Before dispatch, VoxelFurniture expands these built-in context placeholders:
+
+- `{player}` - interacting player's name
+- `{uuid}` - interacting player's UUID
+- `{world}` - furniture world
+- `{x}`, `{y}`, `{z}` - furniture origin block coordinates
+- `{furniture_id}` - concrete placed content ID
+
+If PlaceholderAPI is installed, its player placeholders are expanded after the built-in values. PlaceholderAPI remains
+optional; VoxelFurniture uses a soft dependency and commands continue to work without it.
+
+Interaction commands run after `FurnitureInteractEvent` and before built-in use-animation, inventory, and seat behavior.
+Dyeing still has first priority. A furniture definition with at least one command therefore consumes a successful normal
+interaction instead of also toggling/opening/sitting. Players require `voxelfurniture.interaction.commands`, which
+defaults to true.
+
+Commands participate in normal VoxelCore inheritance. A shared abstract help-box parent can contain all rendering and
+animation properties while concrete child definitions replace the `commands` list:
+
+```yaml
+items:
+  help_box:
+    abstract: true
+    material: PAPER
+    display_name: "&fHelp Box"
+    render:
+      model: voxel:block/guide/help
+    properties:
+      furniture:
+        renderer: display
+        # shared hitbox / animation / display_parts ...
+
+  help_box_shops:
+    extends: help_box
+    abstract: false
+    display_name: "&fShops Help"
+    properties:
+      furniture:
+        interaction:
+          commands:
+            - "help shops"
+
+  help_box_tutorial:
+    extends: help_box
+    abstract: false
+    display_name: "&fTutorial"
+    properties:
+      furniture:
+        interaction:
+          commands:
+            - command: "tutorial open {player} hub"
+              executor: CONSOLE
+```
+
 ### Display view distance
 
 `view_distance` controls the requested ItemDisplay render distance in blocks and defaults to `64`.

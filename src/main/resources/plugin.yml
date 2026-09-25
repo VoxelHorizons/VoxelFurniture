@@ -3,6 +3,7 @@ version: ${project.version}
 main: org.voxelhorizons.furniture.VoxelFurniture
 api-version: '1.13'
 depend: [VoxelCore]
+softdepend: [PlaceholderAPI]
 
 commands:
   voxelfurniture:
@@ -22,6 +23,8 @@ permissions:
   voxelfurniture.sit:
     default: true
   voxelfurniture.inventory:
+    default: true
+  voxelfurniture.interaction.commands:
     default: true
   voxelfurniture.admin:
     default: op

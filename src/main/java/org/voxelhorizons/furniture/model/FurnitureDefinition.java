@@ -34,6 +34,7 @@ public final class FurnitureDefinition {
     private final boolean animationSyncNeighbors;
     private final FurnitureIdleAnimationDefinition idleAnimation;
     private final List<FurnitureDisplayPartDefinition> displayParts;
+    private final List<FurnitureInteractionCommand> interactionCommands;
     private final int inventorySize;
 
     public FurnitureDefinition(ContentID itemId, ContentID modelItemId, ContentID dropItemId,
@@ -156,6 +157,25 @@ public final class FurnitureDefinition {
                                ContentID animationUseModel, int animationCloseDelay,
                                boolean animationSyncNeighbors, FurnitureIdleAnimationDefinition idleAnimation,
                                List<FurnitureDisplayPartDefinition> displayParts, int inventorySize) {
+        this(itemId, modelItemId, dropItemId, renderer, width, height,
+                hitboxOffsetX, hitboxOffsetY, hitboxOffsetZ, scaleX, scaleY, scaleZ,
+                viewDistance, rotationStep, placement, seat, offsetX, offsetY, offsetZ, offsetRotation,
+                blocks, states, animationUseModel, animationCloseDelay, animationSyncNeighbors,
+                idleAnimation, displayParts, Collections.<FurnitureInteractionCommand>emptyList(), inventorySize);
+    }
+
+    public FurnitureDefinition(ContentID itemId, ContentID modelItemId, ContentID dropItemId,
+                               FurnitureRendererType renderer, float width, float height,
+                               double hitboxOffsetX, double hitboxOffsetY, double hitboxOffsetZ,
+                               float scaleX, float scaleY, float scaleZ,
+                               float viewDistance, float rotationStep, FurniturePlacement placement,
+                               FurnitureSeatDefinition seat,
+                               double offsetX, double offsetY, double offsetZ, float offsetRotation,
+                               List<FurnitureBlockDefinition> blocks, List<FurnitureStateRule> states,
+                               ContentID animationUseModel, int animationCloseDelay,
+                               boolean animationSyncNeighbors, FurnitureIdleAnimationDefinition idleAnimation,
+                               List<FurnitureDisplayPartDefinition> displayParts,
+                               List<FurnitureInteractionCommand> interactionCommands, int inventorySize) {
         this.itemId = itemId;
         this.modelItemId = modelItemId;
         this.dropItemId = dropItemId;
@@ -183,6 +203,7 @@ public final class FurnitureDefinition {
         this.animationSyncNeighbors = animationSyncNeighbors;
         this.idleAnimation = idleAnimation;
         this.displayParts = Collections.unmodifiableList(new ArrayList<FurnitureDisplayPartDefinition>(displayParts));
+        this.interactionCommands = Collections.unmodifiableList(new ArrayList<FurnitureInteractionCommand>(interactionCommands));
         this.inventorySize = inventorySize;
     }
 
@@ -218,6 +239,8 @@ public final class FurnitureDefinition {
     public boolean animationSyncNeighbors() { return animationSyncNeighbors; }
     public FurnitureIdleAnimationDefinition idleAnimation() { return idleAnimation; }
     public List<FurnitureDisplayPartDefinition> displayParts() { return displayParts; }
+    public List<FurnitureInteractionCommand> interactionCommands() { return interactionCommands; }
+    public boolean hasInteractionCommands() { return !interactionCommands.isEmpty(); }
     public int inventorySize() { return inventorySize; }
     public boolean hasInventory() { return inventorySize > 0; }
 }
