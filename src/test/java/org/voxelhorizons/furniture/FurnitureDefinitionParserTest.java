@@ -7,6 +7,7 @@ import org.voxelhorizons.content.item.ItemType;
 import org.voxelhorizons.content.item.RawItemDefinition;
 import org.voxelhorizons.content.compile.ItemDefinitionCompiler;
 import org.voxelhorizons.furniture.model.FurnitureDefinition;
+import org.voxelhorizons.furniture.model.FurnitureDisplayPartDefinition;
 import org.voxelhorizons.furniture.model.FurnitureDefinitionParser;
 import org.voxelhorizons.furniture.model.FurnitureRendererType;
 
@@ -16,6 +17,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class FurnitureDefinitionParserTest {
@@ -103,6 +105,59 @@ public class FurnitureDefinitionParserTest {
         hitbox.put("offset", offset);
         Map<String, Object> furniture = new LinkedHashMap<String, Object>();
         furniture.put("hitbox", hitbox);
+        parseFurniture(furniture);
+    }
+
+    @Test public void parsesIdleAnimationAndBillboardTextPart() {
+        Map<String, Object> bob = new LinkedHashMap<String, Object>();
+        bob.put("amplitude", 0.12D);
+        bob.put("period_ticks", 40);
+        Map<String, Object> spin = new LinkedHashMap<String, Object>();
+        spin.put("degrees_per_tick", 2.0D);
+        Map<String, Object> idle = new LinkedHashMap<String, Object>();
+        idle.put("bob", bob);
+        idle.put("spin", spin);
+
+        Map<String, Object> offset = new LinkedHashMap<String, Object>();
+        offset.put("y", 0.5D);
+        Map<String, Object> icon = new LinkedHashMap<String, Object>();
+        icon.put("type", "text");
+        icon.put("text", ":help_icon:");
+        icon.put("billboard", "VERTICAL");
+        icon.put("offset", offset);
+        icon.put("scale", 0.75D);
+        icon.put("bob", true);
+        icon.put("spin", false);
+        Map<String, Object> parts = new LinkedHashMap<String, Object>();
+        parts.put("icon", icon);
+
+        Map<String, Object> furniture = new LinkedHashMap<String, Object>();
+        furniture.put("idle_animation", idle);
+        furniture.put("display_parts", parts);
+
+        FurnitureDefinition definition = parseFurniture(furniture);
+        assertEquals(0.12D, definition.idleAnimation().bobAmplitude(), 0.000001D);
+        assertEquals(40, definition.idleAnimation().bobPeriodTicks());
+        assertEquals(2.0F, definition.idleAnimation().spinDegreesPerTick(), 0.001F);
+        assertEquals(1, definition.displayParts().size());
+        FurnitureDisplayPartDefinition part = definition.displayParts().get(0);
+        assertEquals(FurnitureDisplayPartDefinition.Type.TEXT, part.type());
+        assertEquals(":help_icon:", part.text());
+        assertEquals("VERTICAL", part.billboard());
+        assertTrue(part.bob());
+        assertFalse(part.spin());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsInvalidDisplayPartBillboard() {
+        Map<String, Object> icon = new LinkedHashMap<String, Object>();
+        icon.put("type", "text");
+        icon.put("text", ":help_icon:");
+        icon.put("billboard", "PLAYER");
+        Map<String, Object> parts = new LinkedHashMap<String, Object>();
+        parts.put("icon", icon);
+        Map<String, Object> furniture = new LinkedHashMap<String, Object>();
+        furniture.put("display_parts", parts);
         parseFurniture(furniture);
     }
 

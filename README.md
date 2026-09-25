@@ -201,6 +201,106 @@ Missing axes in the mapping default to `1.0`, so `scale: { y: 2.0 }` only stretc
 All scale values must be finite and greater than zero. Axis-specific scaling applies to the modern ItemDisplay
 renderer; the legacy armor-stand renderer does not provide equivalent non-uniform entity scaling.
 
+### Multipart display furniture and idle animation
+
+Modern display furniture can attach additional item or text display parts to the main rendered model. Text parts support
+Minecraft display billboarding, so one shared entity can face each viewing player independently.
+
+The main model may also use a lightweight idle bob/spin animation:
+
+```yaml
+        idle_animation:
+          bob:
+            amplitude: 0.12
+            period_ticks: 40
+          spin:
+            degrees_per_tick: 2.0
+```
+
+`bob.amplitude` is measured in blocks and `period_ticks` is one complete vertical oscillation. The spin value is
+degrees around Y per server tick. The interaction hitbox follows the main bob so clicks remain aligned with the visual.
+
+Additional display parts are declared by stable IDs:
+
+```yaml
+        display_parts:
+          help_icon:
+            type: text
+            text: ":help_icon:"
+            billboard: VERTICAL
+            offset:
+              x: 0.0
+              y: 0.5
+              z: 0.0
+            scale: 0.5
+            bob: true
+            spin: false
+```
+
+Supported part types are `text` and `item`. Text is resolved against VoxelCore's raw UI glyph registry, so UI aliases
+such as `:help_icon:` render as the allocated glyph without GUI negative-spacing compensation. Item parts instead use
+`model_item: namespace:item_id` and are rendered through VoxelCore's normal item system.
+
+Billboard modes are `FIXED`, `VERTICAL`, `HORIZONTAL`, and `CENTER`. `VERTICAL` is useful for upright icons:
+Minecraft rotates the TextDisplay around Y independently for each viewer, so the same question-mark entity faces every
+player at once. `bob` defaults to true for parts; `spin` defaults to false.
+
+These features require the modern display renderer (Minecraft 1.19.4+). Extra display entities are persisted as owned
+renderer UUIDs, included in orphan repair/reconciliation, and rebuilt on VoxelCore content reload when their definition
+changes.
+
+A complete help/mystery cube using an authored model at `assets/voxel/models/block/guide/help.json` and an existing
+`:help_icon:` UI glyph can be configured as:
+
+```yaml
+items:
+  guide_help:
+    material: PAPER
+    display_name: "&fHelp"
+    render:
+      model: voxel:block/guide/help
+    properties:
+      furniture:
+        renderer: display
+        placement: ALL
+        rotation_step: 45
+
+        hitbox:
+          width: 1.0
+          height: 1.0
+          offset:
+            x: 0.0
+            y: 0.0
+            z: 0.0
+
+        scale: 1.0
+        view_distance: 64
+
+        idle_animation:
+          bob:
+            amplitude: 0.12
+            period_ticks: 40
+          spin:
+            degrees_per_tick: 2.0
+
+        display_parts:
+          help_icon:
+            type: text
+            text: ":help_icon:"
+            billboard: VERTICAL
+            offset:
+              x: 0.0
+              y: 0.5
+              z: 0.0
+            scale: 0.5
+            bob: true
+            spin: false
+```
+
+The shell model should contain the visible outer frame and the inward-facing/back-inside cube faces. The question mark
+should not be baked into the JSON model; keeping it as the billboarded text part is what allows different players on
+different sides of the cube to all see it facing them correctly.
+
 ### Display view distance
 
 `view_distance` controls the requested ItemDisplay render distance in blocks and defaults to `64`.
