@@ -18,7 +18,8 @@ public final class FurnitureDefinitionParser {
     private static final Set<String> KEYS = new HashSet<String>(Arrays.asList(
             "renderer", "model_item", "drop", "hitbox", "scale", "view_distance", "rotation_step", "placement", "seat", "offset", "blocks", "blockstates", "animation", "inventory"
     ));
-    private static final Set<String> HITBOX_KEYS = new HashSet<String>(Arrays.asList("width", "height"));
+    private static final Set<String> HITBOX_KEYS = new HashSet<String>(Arrays.asList("width", "height", "offset"));
+    private static final Set<String> HITBOX_OFFSET_KEYS = new HashSet<String>(Arrays.asList("x", "y", "z"));
     private static final Set<String> SCALE_KEYS = new HashSet<String>(Arrays.asList("x", "y", "z"));
     private static final Set<String> OFFSET_KEYS = new HashSet<String>(Arrays.asList("x", "y", "z", "rotation"));
     private static final Set<String> SEAT_KEYS = new HashSet<String>(Arrays.asList("x", "y", "z", "yaw"));
@@ -59,11 +60,21 @@ public final class FurnitureDefinitionParser {
 
         float width = 1.0f;
         float height = 1.0f;
+        double hitboxOffsetX = 0.0D;
+        double hitboxOffsetY = 0.0D;
+        double hitboxOffsetZ = 0.0D;
         if (map.containsKey("hitbox")) {
             Map<?, ?> hitbox = nested(item, map.get("hitbox"), "hitbox");
             rejectUnknown(item, hitbox, HITBOX_KEYS, "hitbox");
             width = positive(item, hitbox.get("width"), width, "hitbox.width");
             height = positive(item, hitbox.get("height"), height, "hitbox.height");
+            if (hitbox.containsKey("offset")) {
+                Map<?, ?> hitboxOffset = nested(item, hitbox.get("offset"), "hitbox.offset");
+                rejectUnknown(item, hitboxOffset, HITBOX_OFFSET_KEYS, "hitbox.offset");
+                hitboxOffsetX = number(item, hitboxOffset.get("x"), hitboxOffsetX, "hitbox.offset.x");
+                hitboxOffsetY = number(item, hitboxOffset.get("y"), hitboxOffsetY, "hitbox.offset.y");
+                hitboxOffsetZ = number(item, hitboxOffset.get("z"), hitboxOffsetZ, "hitbox.offset.z");
+            }
         }
 
         FurnitureSeatDefinition seat = null;
@@ -125,6 +136,7 @@ public final class FurnitureDefinitionParser {
             throw invalid(item, "blockstates require rotation_step: 90");
         }
         return Optional.of(new FurnitureDefinition(item.id(), modelItem, drop, renderer, width, height,
+                hitboxOffsetX, hitboxOffsetY, hitboxOffsetZ,
                 scale[0], scale[1], scale[2], viewDistance, rotationStep, placement, seat,
                 x, y, z, offsetRotation, blocks, states, animationUseModel, animationCloseDelay,
                 animationSyncNeighbors, inventorySize));
