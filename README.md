@@ -115,6 +115,33 @@ Players can place ordinary blocks against furniture collision blocks. Furniture 
 right-click to open it, so the player must sneak while placing a block against it, matching vanilla container
 interaction. VoxelFurniture items remain protected from placing their carrier blocks through this bypass.
 
+### Interaction hitbox
+
+Modern display furniture uses Minecraft's `Interaction` entity for click targeting. Its size and position can be
+configured independently from the rendered model:
+
+```yaml
+        hitbox:
+          width: 1.5
+          height: 2.0
+          offset:
+            x: 0.0
+            y: 0.25
+            z: 0.5
+```
+
+`width` and `height` remain backwards compatible and default to `1.0`. The optional hitbox offset defaults to
+zero. X/Z are furniture-local coordinates and rotate with the furniture's rendered yaw; Y is vertical. The Y offset
+is relative to the normal bottom-aligned hitbox position, so `y: 0` preserves existing behavior.
+
+Minecraft Interaction entities expose one horizontal width rather than separate X and Z dimensions, so the hitbox's
+horizontal footprint cannot have an independent depth value. On legacy versions using the armor-stand renderer,
+Minecraft does not expose an equivalent resizable Interaction hitbox; these settings affect modern display furniture.
+
+Animation and blockstate variants may override `hitbox.width`, `hitbox.height`, or individual
+`hitbox.offset.x/y/z` values through normal VoxelCore inheritance. Live content reloads rebuild placed furniture
+when any of these values change.
+
 ### Render offset
 
 `offset` is expressed in the furniture's local coordinate system rather than fixed world axes. The X/Z
@@ -226,7 +253,7 @@ placed furniture is automatically rebuilt from the latest definition, including:
 - rendered model/item data and neighbor-selected models
 - renderer choice
 - uniform or per-axis scale and render offsets
-- interaction hitbox dimensions
+- interaction hitbox dimensions and local offsets
 - `view_distance`
 - seat configuration/position
 - collision block layouts when the new cells can be migrated safely
@@ -350,6 +377,10 @@ items:
         hitbox:
           width: 1.0
           height: 1.0
+          offset:
+            x: 0.0
+            y: 0.0
+            z: 0.0
         scale: 1.0
         rotation_step: 90
         offset:
