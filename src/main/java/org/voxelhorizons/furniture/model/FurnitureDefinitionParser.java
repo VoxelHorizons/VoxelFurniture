@@ -16,7 +16,7 @@ import java.util.Set;
 
 public final class FurnitureDefinitionParser {
     private static final Set<String> KEYS = new HashSet<String>(Arrays.asList(
-            "renderer", "model_item", "drop", "hitbox", "scale", "view_distance", "rotation_step", "placement", "seat", "offset", "blocks", "blockstates", "animation", "idle_animation", "display_parts", "inventory"
+            "renderer", "model_item", "drop", "hitbox", "scale", "view_distance", "rotation_step", "placement", "seat", "offset", "blocks", "blockstates", "animation", "idle_animation", "display_parts", "interaction", "inventory"
     ));
     private static final Set<String> HITBOX_KEYS = new HashSet<String>(Arrays.asList("width", "height", "offset"));
     private static final Set<String> HITBOX_OFFSET_KEYS = new HashSet<String>(Arrays.asList("x", "y", "z"));
@@ -31,6 +31,8 @@ public final class FurnitureDefinitionParser {
     private static final Set<String> PART_KEYS = new HashSet<String>(Arrays.asList(
             "type", "model_item", "text", "billboard", "offset", "scale", "bob", "spin"));
     private static final Set<String> PART_OFFSET_KEYS = new HashSet<String>(Arrays.asList("x", "y", "z"));
+    private static final Set<String> INTERACTION_KEYS = new HashSet<String>(Arrays.asList("commands"));
+    private static final Set<String> COMMAND_KEYS = new HashSet<String>(Arrays.asList("command", "executor"));
     private static final Set<String> BLOCK_KEYS = new HashSet<String>(Arrays.asList("x", "y", "z", "material"));
     private static final Set<String> STATE_KEYS = new HashSet<String>(Arrays.asList(
             "neighbors", "absent", "model_item", "rotation", "rotate", "relative", "aligned_only", "neighbor_facing"));
@@ -178,6 +180,46 @@ public final class FurnitureDefinitionParser {
             displayParts = parsed;
         }
 
+        List<FurnitureInteractionCommand> interactionCommands = Collections.emptyList();
+        if (map.containsKey("interaction")) {
+            Map<?, ?> interaction = nested(item, map.get("interaction"), "interaction");
+            rejectUnknown(item, interaction, INTERACTION_KEYS, "interaction");
+            Object commandsRaw = interaction.get("commands");
+            if (commandsRaw != null) {
+                if (!(commandsRaw instanceof Collection))
+                    throw invalid(item, "interaction.commands must be a list");
+                List<FurnitureInteractionCommand> parsedCommands = new ArrayList<FurnitureInteractionCommand>();
+                int index = 0;
+                for (Object commandRaw : (Collection<?>) commandsRaw) {
+                    String command;
+                    FurnitureInteractionCommand.Executor executor = FurnitureInteractionCommand.Executor.PLAYER;
+                    if (commandRaw instanceof String) {
+                        command = ((String) commandRaw).trim();
+                    } else {
+                        Map<?, ?> commandMap = nested(item, commandRaw,
+                                "interaction.commands[" + index + "]");
+                        rejectUnknown(item, commandMap, COMMAND_KEYS,
+                                "interaction.commands[" + index + "]");
+                        Object value = commandMap.get("command");
+                        if (!(value instanceof String))
+                            throw invalid(item, "interaction.commands[" + index + "].command is required");
+                        command = ((String) value).trim();
+                        try {
+                            executor = FurnitureInteractionCommand.Executor.parse(commandMap.get("executor"));
+                        } catch (IllegalArgumentException exception) {
+                            throw invalid(item, "interaction.commands[" + index + "]." + exception.getMessage());
+                        }
+                    }
+                    if (command.startsWith("/")) command = command.substring(1).trim();
+                    if (command.isEmpty())
+                        throw invalid(item, "interaction.commands[" + index + "] cannot be empty");
+                    parsedCommands.add(new FurnitureInteractionCommand(command, executor));
+                    index++;
+                }
+                interactionCommands = parsedCommands;
+            }
+        }
+
         int inventorySize = 0;
         if (map.containsKey("inventory")) {
             Map<?, ?> inventory = nested(item, map.get("inventory"), "inventory");
@@ -212,7 +254,7 @@ public final class FurnitureDefinitionParser {
                 hitboxOffsetX, hitboxOffsetY, hitboxOffsetZ,
                 scale[0], scale[1], scale[2], viewDistance, rotationStep, placement, seat,
                 x, y, z, offsetRotation, blocks, states, animationUseModel, animationCloseDelay,
-                animationSyncNeighbors, idleAnimation, displayParts, inventorySize));
+                animationSyncNeighbors, idleAnimation, displayParts, interactionCommands, inventorySize));
     }
 
     static float[] scale(ItemDefinition item, Object raw) {
