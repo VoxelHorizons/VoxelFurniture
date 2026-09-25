@@ -72,7 +72,7 @@ public final class DisplayFurnitureRenderer implements FurnitureRenderer {
                 if (part.type() == FurnitureDisplayPartDefinition.Type.TEXT) {
                     extra = location.getWorld().spawnEntity(partLocation, EntityType.valueOf("TEXT_DISPLAY"));
                     invoke(extra, "setText", String.class,
-                            core.getTextPlaceholderService().resolve(part.text()));
+                            core.getPackManager().uiGlyphs(false).resolveAliases(part.text(), false, true, true));
                 } else {
                     extra = location.getWorld().spawnEntity(partLocation, EntityType.valueOf("ITEM_DISPLAY"));
                     ItemStack partItem = core.getItemManager().createRenderItem(part.modelItem());
