@@ -74,6 +74,14 @@ public final class DisplayFurnitureRenderer implements FurnitureRenderer {
                     extra = location.getWorld().spawnEntity(partLocation, EntityType.valueOf("TEXT_DISPLAY"));
                     invoke(extra, "setText", String.class,
                             core.getPackManager().uiGlyphs(false).resolveAliases(part.text(), false, true, true));
+                    invokeOptional(extra, "setDefaultBackground", Boolean.TYPE, Boolean.FALSE);
+                    try {
+                        Class<?> colorType = Class.forName("org.bukkit.Color");
+                        Object transparent = colorType.getMethod("fromARGB", Integer.TYPE).invoke(null, Integer.valueOf(0));
+                        invokeOptional(extra, "setBackgroundColor", colorType, transparent);
+                    } catch (ClassNotFoundException ignored) {
+                        // Older APIs do not expose Bukkit Color on display entities.
+                    }
                 } else {
                     extra = location.getWorld().spawnEntity(partLocation, EntityType.valueOf("ITEM_DISPLAY"));
                     ItemStack partItem = core.getItemManager().createRenderItem(part.modelItem());
