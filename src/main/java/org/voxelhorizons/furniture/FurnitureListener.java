@@ -1,5 +1,6 @@
 package org.voxelhorizons.furniture;
 
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
@@ -30,7 +31,9 @@ import org.voxelhorizons.item.DyeableItemListener;
 import org.voxelhorizons.furniture.event.FurnitureInteractEvent;
 import org.voxelhorizons.furniture.model.FurnitureDefinition;
 import org.voxelhorizons.furniture.model.FurnitureInstance;
+import org.voxelhorizons.furniture.model.FurnitureInteractionCommand;
 
+import java.lang.reflect.Method;
 import java.util.Optional;
 import java.util.Iterator;
 
@@ -191,10 +194,48 @@ public final class FurnitureListener implements Listener {
         org.bukkit.Bukkit.getPluginManager().callEvent(interaction);
         if (interaction.isCancelled()) return;
         FurnitureDefinition definition = furniture.definition(instance.definitionId()).orElse(null);
+        if (definition != null && definition.hasInteractionCommands()
+                && player.hasPermission("voxelfurniture.interaction.commands")) {
+            executeCommands(player, instance, definition);
+            return;
+        }
         if (definition != null && !definition.hasInventory() && definition.animationUseModel() != null
                 && furniture.toggleUseAnimation(instance)) return;
         if (player.hasPermission("voxelfurniture.inventory") && furniture.openInventory(player, instance)) return;
         if (player.hasPermission("voxelfurniture.sit")) furniture.sit(player, instance);
+    }
+
+    private void executeCommands(Player player, FurnitureInstance instance, FurnitureDefinition definition) {
+        for (FurnitureInteractionCommand configured : definition.interactionCommands()) {
+            String command = resolveCommand(player, instance, configured.command());
+            if (configured.executor() == FurnitureInteractionCommand.Executor.CONSOLE) {
+                Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
+            } else {
+                Bukkit.dispatchCommand(player, command);
+            }
+        }
+    }
+
+    private String resolveCommand(Player player, FurnitureInstance instance, String input) {
+        Location location = instance.location();
+        String resolved = input
+                .replace("{player}", player.getName())
+                .replace("{uuid}", player.getUniqueId().toString())
+                .replace("{world}", location.getWorld() == null ? "" : location.getWorld().getName())
+                .replace("{x}", String.valueOf(location.getBlockX()))
+                .replace("{y}", String.valueOf(location.getBlockY()))
+                .replace("{z}", String.valueOf(location.getBlockZ()))
+                .replace("{furniture_id}", instance.definitionId().toString());
+
+        if (Bukkit.getPluginManager().getPlugin("PlaceholderAPI") == null) return resolved;
+        try {
+            Class<?> placeholderApi = Class.forName("me.clip.placeholderapi.PlaceholderAPI");
+            Method method = placeholderApi.getMethod("setPlaceholders", Player.class, String.class);
+            Object expanded = method.invoke(null, player, resolved);
+            return expanded instanceof String ? (String) expanded : resolved;
+        } catch (ReflectiveOperationException ignored) {
+            return resolved;
+        }
     }
 
     private boolean tryDye(Player player, FurnitureInstance instance, ItemStack held) {
