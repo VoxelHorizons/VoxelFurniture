@@ -60,6 +60,52 @@ public class FurnitureDefinitionParserTest {
         parse(scale);
     }
 
+    @Test public void parsesHitboxSizeAndLocalOffset() {
+        Map<String, Object> offset = new LinkedHashMap<String, Object>();
+        offset.put("x", 0.25D);
+        offset.put("y", -0.5D);
+        offset.put("z", 0.75D);
+
+        Map<String, Object> hitbox = new LinkedHashMap<String, Object>();
+        hitbox.put("width", 1.5D);
+        hitbox.put("height", 2.25D);
+        hitbox.put("offset", offset);
+
+        Map<String, Object> furniture = new LinkedHashMap<String, Object>();
+        furniture.put("hitbox", hitbox);
+
+        FurnitureDefinition definition = parseFurniture(furniture);
+        assertEquals(1.5F, definition.width(), 0.001F);
+        assertEquals(2.25F, definition.height(), 0.001F);
+        assertEquals(0.25D, definition.hitboxOffsetX(), 0.000001D);
+        assertEquals(-0.5D, definition.hitboxOffsetY(), 0.000001D);
+        assertEquals(0.75D, definition.hitboxOffsetZ(), 0.000001D);
+    }
+
+    @Test public void hitboxOffsetDefaultsToFurnitureOrigin() {
+        Map<String, Object> hitbox = new LinkedHashMap<String, Object>();
+        hitbox.put("width", 2.0D);
+        hitbox.put("height", 3.0D);
+        Map<String, Object> furniture = new LinkedHashMap<String, Object>();
+        furniture.put("hitbox", hitbox);
+
+        FurnitureDefinition definition = parseFurniture(furniture);
+        assertEquals(0.0D, definition.hitboxOffsetX(), 0.000001D);
+        assertEquals(0.0D, definition.hitboxOffsetY(), 0.000001D);
+        assertEquals(0.0D, definition.hitboxOffsetZ(), 0.000001D);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsUnknownHitboxOffsetProperty() {
+        Map<String, Object> offset = new LinkedHashMap<String, Object>();
+        offset.put("rotation", 90.0D);
+        Map<String, Object> hitbox = new LinkedHashMap<String, Object>();
+        hitbox.put("offset", offset);
+        Map<String, Object> furniture = new LinkedHashMap<String, Object>();
+        furniture.put("hitbox", hitbox);
+        parseFurniture(furniture);
+    }
+
     @Test public void parsesInventoryAndUseAnimation() {
         Map<String, Object> animation = new LinkedHashMap<String, Object>();
         animation.put("use", "voxel:test_open");

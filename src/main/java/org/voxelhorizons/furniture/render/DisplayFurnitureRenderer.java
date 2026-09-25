@@ -42,9 +42,13 @@ public final class DisplayFurnitureRenderer implements FurnitureRenderer {
             applyScale(display, definition.scaleX(), definition.scaleY(), definition.scaleZ());
             applyViewDistance(display, definition.viewDistance());
 
-            Entity interaction = location.getWorld().spawnEntity(location, EntityType.valueOf("INTERACTION"));
+            Location hitboxLocation = FurnitureRenderTransform.applyLocalOffset(
+                    location, yaw, definition.hitboxOffsetX(),
+                    definition.hitboxOffsetY() + definition.height() / 2.0D,
+                    definition.hitboxOffsetZ());
+            Entity interaction = location.getWorld().spawnEntity(hitboxLocation, EntityType.valueOf("INTERACTION"));
             entities.add(interaction.getUniqueId());
-            interaction.teleport(location.clone().add(0.0D, definition.height() / 2.0D, 0.0D));
+            interaction.teleport(hitboxLocation);
             invoke(interaction, "setInteractionWidth", Float.TYPE, definition.width());
             invoke(interaction, "setInteractionHeight", Float.TYPE, definition.height());
             invoke(interaction, "setResponsive", Boolean.TYPE, true);

@@ -13,6 +13,9 @@ public final class FurnitureDefinition {
     private final FurnitureRendererType renderer;
     private final float width;
     private final float height;
+    private final double hitboxOffsetX;
+    private final double hitboxOffsetY;
+    private final double hitboxOffsetZ;
     private final float scaleX;
     private final float scaleY;
     private final float scaleZ;
@@ -117,12 +120,31 @@ public final class FurnitureDefinition {
                                List<FurnitureBlockDefinition> blocks, List<FurnitureStateRule> states,
                                ContentID animationUseModel, int animationCloseDelay,
                                boolean animationSyncNeighbors, int inventorySize) {
+        this(itemId, modelItemId, dropItemId, renderer, width, height, 0.0D, 0.0D, 0.0D,
+                scaleX, scaleY, scaleZ, viewDistance, rotationStep, placement, seat,
+                offsetX, offsetY, offsetZ, offsetRotation, blocks, states, animationUseModel,
+                animationCloseDelay, animationSyncNeighbors, inventorySize);
+    }
+
+    public FurnitureDefinition(ContentID itemId, ContentID modelItemId, ContentID dropItemId,
+                               FurnitureRendererType renderer, float width, float height,
+                               double hitboxOffsetX, double hitboxOffsetY, double hitboxOffsetZ,
+                               float scaleX, float scaleY, float scaleZ,
+                               float viewDistance, float rotationStep, FurniturePlacement placement,
+                               FurnitureSeatDefinition seat,
+                               double offsetX, double offsetY, double offsetZ, float offsetRotation,
+                               List<FurnitureBlockDefinition> blocks, List<FurnitureStateRule> states,
+                               ContentID animationUseModel, int animationCloseDelay,
+                               boolean animationSyncNeighbors, int inventorySize) {
         this.itemId = itemId;
         this.modelItemId = modelItemId;
         this.dropItemId = dropItemId;
         this.renderer = renderer;
         this.width = width;
         this.height = height;
+        this.hitboxOffsetX = hitboxOffsetX;
+        this.hitboxOffsetY = hitboxOffsetY;
+        this.hitboxOffsetZ = hitboxOffsetZ;
         this.scaleX = scaleX;
         this.scaleY = scaleY;
         this.scaleZ = scaleZ;
@@ -148,6 +170,9 @@ public final class FurnitureDefinition {
     public FurnitureRendererType renderer() { return renderer; }
     public float width() { return width; }
     public float height() { return height; }
+    public double hitboxOffsetX() { return hitboxOffsetX; }
+    public double hitboxOffsetY() { return hitboxOffsetY; }
+    public double hitboxOffsetZ() { return hitboxOffsetZ; }
     /**
      * Legacy uniform-scale accessor retained for source/binary compatibility.
      * For axis-specific definitions this returns the X scale.
