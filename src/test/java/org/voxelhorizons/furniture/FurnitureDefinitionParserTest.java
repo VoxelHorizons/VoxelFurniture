@@ -7,6 +7,7 @@ import org.voxelhorizons.content.item.ItemType;
 import org.voxelhorizons.content.item.RawItemDefinition;
 import org.voxelhorizons.content.compile.ItemDefinitionCompiler;
 import org.voxelhorizons.furniture.model.FurnitureDefinition;
+import org.voxelhorizons.furniture.model.FurnitureDisplayPartDefinition;
 import org.voxelhorizons.furniture.model.FurnitureDefinitionParser;
 import org.voxelhorizons.furniture.model.FurnitureRendererType;
 
