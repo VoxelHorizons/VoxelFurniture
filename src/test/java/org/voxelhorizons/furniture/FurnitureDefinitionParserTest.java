@@ -198,6 +198,38 @@ public class FurnitureDefinitionParserTest {
         parseFurniture(furniture);
     }
 
+    @Test public void childInteractionCommandsReplaceParentCommandList() {
+        ContentID parentId = ContentID.parse("voxel:help_box", "voxel");
+        ContentID childId = ContentID.parse("voxel:help_box_shops", "voxel");
+
+        Map<String, Object> parentInteraction = new LinkedHashMap<String, Object>();
+        parentInteraction.put("commands", java.util.Collections.<Object>singletonList("help generic"));
+        Map<String, Object> parentFurniture = new LinkedHashMap<String, Object>();
+        parentFurniture.put("interaction", parentInteraction);
+        Map<String, Object> parentProperties = new LinkedHashMap<String, Object>();
+        parentProperties.put("furniture", parentFurniture);
+
+        Map<String, Object> childInteraction = new LinkedHashMap<String, Object>();
+        childInteraction.put("commands", java.util.Collections.<Object>singletonList("help shops"));
+        Map<String, Object> childFurniture = new LinkedHashMap<String, Object>();
+        childFurniture.put("interaction", childInteraction);
+        Map<String, Object> childProperties = new LinkedHashMap<String, Object>();
+        childProperties.put("furniture", childFurniture);
+
+        RawItemDefinition parent = new RawItemDefinition(parentId, null, ItemType.ITEM, "PAPER", "Help",
+                Collections.<String>emptyList(), Boolean.TRUE, Boolean.FALSE, null, parentProperties, null);
+        RawItemDefinition child = new RawItemDefinition(childId, parentId, null, null, "Shops Help",
+                null, Boolean.FALSE, Boolean.FALSE, null, childProperties, null);
+
+        ItemDefinition resolved = new ItemDefinitionCompiler()
+                .compile(java.util.Arrays.asList(parent, child)).get(childId).get();
+        FurnitureDefinition definition = new FurnitureDefinitionParser(FurnitureRendererType.AUTO, 45.0F)
+                .parse(resolved).get();
+
+        assertEquals(1, definition.interactionCommands().size());
+        assertEquals("help shops", definition.interactionCommands().get(0).command());
+    }
+
     @Test public void parsesInventoryAndUseAnimation() {
         Map<String, Object> animation = new LinkedHashMap<String, Object>();
         animation.put("use", "voxel:test_open");
