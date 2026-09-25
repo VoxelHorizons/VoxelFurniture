@@ -8,6 +8,7 @@ import org.voxelhorizons.content.item.RawItemDefinition;
 import org.voxelhorizons.content.compile.ItemDefinitionCompiler;
 import org.voxelhorizons.furniture.model.FurnitureDefinition;
 import org.voxelhorizons.furniture.model.FurnitureDisplayPartDefinition;
+import org.voxelhorizons.furniture.model.FurnitureInteractionCommand;
 import org.voxelhorizons.furniture.model.FurnitureDefinitionParser;
 import org.voxelhorizons.furniture.model.FurnitureRendererType;
 
@@ -158,6 +159,42 @@ public class FurnitureDefinitionParserTest {
         parts.put("icon", icon);
         Map<String, Object> furniture = new LinkedHashMap<String, Object>();
         furniture.put("display_parts", parts);
+        parseFurniture(furniture);
+    }
+
+    @Test public void parsesInteractionCommandShorthandAndExecutors() {
+        java.util.List<Object> commands = new java.util.ArrayList<Object>();
+        commands.add("help getting-started");
+
+        Map<String, Object> console = new LinkedHashMap<String, Object>();
+        console.put("command", "/tutorial open {player} hub");
+        console.put("executor", "CONSOLE");
+        commands.add(console);
+
+        Map<String, Object> interaction = new LinkedHashMap<String, Object>();
+        interaction.put("commands", commands);
+        Map<String, Object> furniture = new LinkedHashMap<String, Object>();
+        furniture.put("interaction", interaction);
+
+        FurnitureDefinition definition = parseFurniture(furniture);
+        assertEquals(2, definition.interactionCommands().size());
+        assertEquals("help getting-started", definition.interactionCommands().get(0).command());
+        assertEquals(FurnitureInteractionCommand.Executor.PLAYER,
+                definition.interactionCommands().get(0).executor());
+        assertEquals("tutorial open {player} hub", definition.interactionCommands().get(1).command());
+        assertEquals(FurnitureInteractionCommand.Executor.CONSOLE,
+                definition.interactionCommands().get(1).executor());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsInvalidInteractionCommandExecutor() {
+        Map<String, Object> command = new LinkedHashMap<String, Object>();
+        command.put("command", "help");
+        command.put("executor", "OP");
+        Map<String, Object> interaction = new LinkedHashMap<String, Object>();
+        interaction.put("commands", java.util.Collections.<Object>singletonList(command));
+        Map<String, Object> furniture = new LinkedHashMap<String, Object>();
+        furniture.put("interaction", interaction);
         parseFurniture(furniture);
     }
 
