@@ -49,6 +49,7 @@ public final class DisplayFurnitureRenderer implements FurnitureRenderer {
             applyDisplayTransform(display);
             applyScale(display, definition.scaleX(), definition.scaleY(), definition.scaleZ());
             applyViewDistance(display, definition.viewDistance());
+            invokeOptional(display, "setTeleportDuration", Integer.TYPE, Integer.valueOf(1));
 
             Location hitboxLocation = FurnitureRenderTransform.applyLocalOffset(
                     location, yaw, definition.hitboxOffsetX(),
@@ -83,6 +84,7 @@ public final class DisplayFurnitureRenderer implements FurnitureRenderer {
                 applyBillboard(extra, part.billboard());
                 applyScale(extra, part.scale(), part.scale(), part.scale());
                 applyViewDistance(extra, definition.viewDistance());
+                invokeOptional(extra, "setTeleportDuration", Integer.TYPE, Integer.valueOf(1));
                 extra.addScoreboardTag("voxelfurniture");
                 extra.addScoreboardTag("voxelfurniture-part-" + part.id());
             }
@@ -123,6 +125,15 @@ public final class DisplayFurnitureRenderer implements FurnitureRenderer {
         // Display#setViewRange uses Minecraft's native 64-block multiplier.
         float nativeRange = blocks / 64.0F;
         display.getClass().getMethod("setViewRange", Float.TYPE).invoke(display, nativeRange);
+    }
+
+    private static void invokeOptional(Object target, String name, Class<?> parameter, Object value)
+            throws ReflectiveOperationException {
+        try {
+            target.getClass().getMethod(name, parameter).invoke(target, value);
+        } catch (NoSuchMethodException ignored) {
+            // Older display APIs do not expose teleport interpolation.
+        }
     }
 
     private static void invoke(Object target, String name, Class<?> parameter, Object value)
