@@ -713,6 +713,8 @@ public final class FurnitureManager {
                 .append(renderer.name()).append('|')
                 .append(selected.model()).append('|').append(selected.yaw()).append('|')
                 .append(definition.width()).append('|').append(definition.height()).append('|')
+                .append(definition.hitboxOffsetX()).append('|').append(definition.hitboxOffsetY()).append('|')
+                .append(definition.hitboxOffsetZ()).append('|')
                 .append(definition.scaleX()).append('|').append(definition.scaleY()).append('|')
                 .append(definition.scaleZ()).append('|').append(definition.viewDistance()).append('|')
                 .append(definition.offsetX()).append('|').append(definition.offsetY()).append('|')
