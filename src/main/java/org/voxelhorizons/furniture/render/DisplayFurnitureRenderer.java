@@ -1,10 +1,12 @@
 package org.voxelhorizons.furniture.render;
 
+import org.voxelhorizons.VoxelCore;
 import org.bukkit.Location;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.inventory.ItemStack;
 import org.voxelhorizons.furniture.model.FurnitureDefinition;
+import org.voxelhorizons.furniture.model.FurnitureDisplayPartDefinition;
 import org.voxelhorizons.furniture.model.FurnitureRendererType;
 
 import java.lang.reflect.Method;
@@ -13,6 +15,12 @@ import java.util.List;
 import java.util.UUID;
 
 public final class DisplayFurnitureRenderer implements FurnitureRenderer {
+    private final VoxelCore core;
+
+    public DisplayFurnitureRenderer(VoxelCore core) {
+        this.core = core;
+    }
+
     @Override public FurnitureRendererType type() { return FurnitureRendererType.DISPLAY; }
 
     @Override
@@ -29,7 +37,7 @@ public final class DisplayFurnitureRenderer implements FurnitureRenderer {
     @Override
     public List<UUID> spawn(Location location, float yaw, ItemStack modelItem, FurnitureDefinition definition) {
         if (!supported()) throw new IllegalStateException("Display entities are unavailable on this server");
-        List<UUID> entities = new ArrayList<UUID>(2);
+        List<UUID> entities = new ArrayList<UUID>(2 + definition.displayParts().size());
         Location renderLocation = FurnitureRenderTransform.applyLocalOffset(
                 location, yaw, definition.offsetX(), definition.offsetY(), definition.offsetZ(),
                 definition.offsetRotation());
@@ -53,12 +61,43 @@ public final class DisplayFurnitureRenderer implements FurnitureRenderer {
             invoke(interaction, "setInteractionHeight", Float.TYPE, definition.height());
             invoke(interaction, "setResponsive", Boolean.TYPE, true);
             display.addScoreboardTag("voxelfurniture");
+            display.addScoreboardTag("voxelfurniture-main");
             interaction.addScoreboardTag("voxelfurniture");
+            interaction.addScoreboardTag("voxelfurniture-interaction");
+
+            for (FurnitureDisplayPartDefinition part : definition.displayParts()) {
+                Location partLocation = FurnitureRenderTransform.applyLocalOffset(
+                        location, yaw, part.offsetX(), part.offsetY(), part.offsetZ());
+                Entity extra;
+                if (part.type() == FurnitureDisplayPartDefinition.Type.TEXT) {
+                    extra = location.getWorld().spawnEntity(partLocation, EntityType.valueOf("TEXT_DISPLAY"));
+                    invoke(extra, "setText", String.class,
+                            core.getTextPlaceholderService().resolve(part.text()));
+                } else {
+                    extra = location.getWorld().spawnEntity(partLocation, EntityType.valueOf("ITEM_DISPLAY"));
+                    ItemStack partItem = core.getItemManager().createRenderItem(part.modelItem());
+                    invoke(extra, "setItemStack", ItemStack.class, partItem);
+                    applyDisplayTransform(extra);
+                }
+                entities.add(extra.getUniqueId());
+                applyBillboard(extra, part.billboard());
+                applyScale(extra, part.scale(), part.scale(), part.scale());
+                applyViewDistance(extra, definition.viewDistance());
+                extra.addScoreboardTag("voxelfurniture");
+                extra.addScoreboardTag("voxelfurniture-part-" + part.id());
+            }
             return entities;
         } catch (ReflectiveOperationException exception) {
             EntitySupport.remove(entities);
             throw new IllegalStateException("Unable to initialize display furniture", exception);
         }
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static void applyBillboard(Entity display, String mode) throws ReflectiveOperationException {
+        Class<?> billboardType = Class.forName("org.bukkit.entity.Display$Billboard");
+        Object value = Enum.valueOf((Class<? extends Enum>) billboardType.asSubclass(Enum.class), mode);
+        display.getClass().getMethod("setBillboard", billboardType).invoke(display, value);
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
