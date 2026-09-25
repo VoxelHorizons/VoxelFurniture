@@ -8,13 +8,17 @@ import org.bukkit.inventory.ItemStack;
 import org.voxelhorizons.furniture.model.FurnitureDefinition;
 import org.voxelhorizons.furniture.model.FurnitureDisplayPartDefinition;
 import org.voxelhorizons.furniture.model.FurnitureRendererType;
+import org.voxelhorizons.pack.UiSpacingGlyphs;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public final class DisplayFurnitureRenderer implements FurnitureRenderer {
+    private static final Pattern OFFSET_PLACEHOLDER = Pattern.compile(":offset_(-?\\d+):");
     private final VoxelCore core;
 
     public DisplayFurnitureRenderer(VoxelCore core) {
@@ -72,8 +76,7 @@ public final class DisplayFurnitureRenderer implements FurnitureRenderer {
                 Entity extra;
                 if (part.type() == FurnitureDisplayPartDefinition.Type.TEXT) {
                     extra = location.getWorld().spawnEntity(partLocation, EntityType.valueOf("TEXT_DISPLAY"));
-                    invoke(extra, "setText", String.class,
-                            core.getPackManager().uiGlyphs(false).resolveAliases(part.text(), false, true, true));
+                    invoke(extra, "setText", String.class, resolveDisplayText(part.text()));
                     invokeOptional(extra, "setDefaultBackground", Boolean.TYPE, Boolean.FALSE);
                     try {
                         Class<?> colorType = Class.forName("org.bukkit.Color");
@@ -101,6 +104,28 @@ public final class DisplayFurnitureRenderer implements FurnitureRenderer {
             EntitySupport.remove(entities);
             throw new IllegalStateException("Unable to initialize display furniture", exception);
         }
+    }
+
+    private String resolveDisplayText(String input) {
+        if (input == null || input.indexOf(':') < 0) return input;
+        Matcher matcher = OFFSET_PLACEHOLDER.matcher(input);
+        StringBuffer output = new StringBuffer();
+        while (matcher.find()) {
+            String replacement = matcher.group(0);
+            try {
+                int offset = Integer.parseInt(matcher.group(1));
+                if (offset < -UiSpacingGlyphs.maxOffset() || offset > UiSpacingGlyphs.maxOffset()) {
+                    throw new IllegalArgumentException("Offset is outside the public placeholder range");
+                }
+                replacement = UiSpacingGlyphs.charactersForOffset(offset);
+            } catch (IllegalArgumentException ignored) {
+                // Preserve malformed/out-of-range placeholders so content mistakes remain visible.
+            }
+            matcher.appendReplacement(output, Matcher.quoteReplacement(replacement));
+        }
+        matcher.appendTail(output);
+        return core.getPackManager().uiGlyphs(false)
+                .resolveAliases(output.toString(), false, true, true);
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
