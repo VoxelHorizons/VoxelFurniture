@@ -21,6 +21,30 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class FurnitureManagerTest {
+    @Test public void inventoryNamePlaceholderStripsItemColorButPreservesTitleFormatting() {
+        assertEquals(":offset_-8::generic_27_top::offset_-170:&rOak Drawer Bench",
+                FurnitureManager.expandInventoryTitleNameTokens(
+                        ":offset_-8::generic_27_top::offset_-170:&r<name>",
+                        "&fOak Drawer Bench"));
+    }
+
+    @Test public void inventoryItemAliasAlsoStripsLegacyAndRgbFormatting() {
+        assertEquals("&rOak Drawer Bench / Oak Drawer Bench",
+                FurnitureManager.expandInventoryTitleNameTokens(
+                        "&r<item> / <name>", "&#FFAA33Oak &lDrawer \\u00a7bBench"));
+    }
+
+    @Test public void inventoryTokensCanBeRepeatedAndRetainUnicodeUiGlyphs() {
+        assertEquals(":offset_-8:Chair - Chair",
+                FurnitureManager.expandInventoryTitleNameTokens(
+                        ":offset_-8:<name> - <item>", "&6Chair"));
+    }
+
+    @Test public void titleWithoutTokensRemainsUnchanged() {
+        String title = ":offset_-8:&rStatic Title";
+        assertEquals(title, FurnitureManager.expandInventoryTitleNameTokens(title, "&cOak Drawer Bench"));
+    }
+
     @Test public void snapsPositiveYaw() {
         assertEquals(90.0F, FurnitureManager.snapYaw(70.0F, 45.0F), 0.001F);
     }
