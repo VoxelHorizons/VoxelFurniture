@@ -369,7 +369,8 @@ public final class FurnitureManager {
 
     private String inventoryTitle(FurnitureDefinition furniture) {
         Optional<ItemDefinition> item = core.getItemManager().getDefinition(furniture.itemId());
-        String title = item.isPresent() ? item.get().displayName() : null;
+        String title = furniture.inventoryTitle();
+        if (title == null) title = item.isPresent() ? item.get().displayName() : null;
         if (title == null || title.trim().isEmpty()) title = furniture.itemId().toString();
         if (core.getTextPlaceholderService() != null) {
             title = core.getTextPlaceholderService().resolve(title);
