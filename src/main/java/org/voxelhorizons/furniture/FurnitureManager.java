@@ -52,9 +52,13 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 public final class FurnitureManager {
     private static final String RENDER_SIGNATURE_VERSION = "local-offset-v2";
+    // Strip RGB and legacy formatting from <name>/<item> expansions, never from the title template.
+    private static final Pattern ITEM_HEX_COLORS = Pattern.compile("(?i)(?:&#[0-9a-f]{6}|[&\\u00a7]x(?:[&\\u00a7][0-9a-f]){6})");
+
 
     private final VoxelCore core;
     private final FurnitureDefinitionParser definitions;
@@ -369,12 +373,34 @@ public final class FurnitureManager {
 
     private String inventoryTitle(FurnitureDefinition furniture) {
         Optional<ItemDefinition> item = core.getItemManager().getDefinition(furniture.itemId());
-        String title = item.isPresent() ? item.get().displayName() : null;
+        String displayName = item.isPresent() ? item.get().displayName() : null;
+        String title = furniture.inventoryTitle();
+        if (title == null) {
+            // Existing inventories without a custom title retain their original formatted display name.
+            title = displayName;
+        } else if (title.contains("<name>") || title.contains("<item>")) {
+            // Resolve placeholders in the item's display name first, then remove its formatting.
+            String name = displayName == null || displayName.trim().isEmpty()
+                    ? furniture.itemId().toString() : displayName;
+            if (core.getTextPlaceholderService() != null) {
+                name = core.getTextPlaceholderService().resolve(name);
+            }
+            title = expandInventoryTitleNameTokens(title, name);
+        }
         if (title == null || title.trim().isEmpty()) title = furniture.itemId().toString();
         if (core.getTextPlaceholderService() != null) {
             title = core.getTextPlaceholderService().resolve(title);
         }
         return ChatColor.translateAlternateColorCodes('&', title);
+    }
+
+    /** Expands the resolved item's unformatted name without changing colors or glyphs in the GUI title. */
+    static String expandInventoryTitleNameTokens(String title, String displayName) {
+        if (title == null || (!title.contains("<name>") && !title.contains("<item>"))) return title;
+        String name = displayName == null ? "" : displayName;
+        name = ITEM_HEX_COLORS.matcher(name).replaceAll("");
+        name = ChatColor.stripColor(ChatColor.translateAlternateColorCodes('&', name));
+        return title.replace("<name>", name).replace("<item>", name);
     }
 
     public void closeInventory(final Inventory inventory) {
