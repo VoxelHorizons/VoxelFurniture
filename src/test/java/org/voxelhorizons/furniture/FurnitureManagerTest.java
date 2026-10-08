@@ -31,7 +31,7 @@ public class FurnitureManagerTest {
     @Test public void inventoryItemAliasAlsoStripsLegacyAndRgbFormatting() {
         assertEquals("&rOak Drawer Bench / Oak Drawer Bench",
                 FurnitureManager.expandInventoryTitleNameTokens(
-                        "&r<item> / <name>", "&#FFAA33Oak &lDrawer \\u00a7bBench"));
+                        "&r<item> / <name>", "&#FFAA33Oak &lDrawer §bBench"));
     }
 
     @Test public void inventoryTokensCanBeRepeatedAndRetainUnicodeUiGlyphs() {
