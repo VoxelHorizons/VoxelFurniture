@@ -248,6 +248,46 @@ public class FurnitureDefinitionParserTest {
         assertEquals(16, definition.animationCloseDelay());
     }
 
+    @Test public void parsesIndependentInventoryTitle() {
+        Map<String, Object> inventory = new LinkedHashMap<String, Object>();
+        inventory.put("size", 27);
+        inventory.put("title", ":offset_-8::generic_27_top::offset_-170:&rOak Drawer Bench");
+        Map<String, Object> furniture = new LinkedHashMap<String, Object>();
+        furniture.put("inventory", inventory);
+        FurnitureDefinition definition = parseFurniture(furniture);
+        assertEquals(27, definition.inventorySize());
+        assertEquals(":offset_-8::generic_27_top::offset_-170:&rOak Drawer Bench",
+                definition.inventoryTitle());
+    }
+
+    @Test public void inventoryTitleDefaultsToItemDisplayNameWhenAbsent() {
+        Map<String, Object> inventory = new LinkedHashMap<String, Object>();
+        inventory.put("size", 27);
+        Map<String, Object> furniture = new LinkedHashMap<String, Object>();
+        furniture.put("inventory", inventory);
+        assertEquals(null, parseFurniture(furniture).inventoryTitle());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsNonStringInventoryTitle() {
+        Map<String, Object> inventory = new LinkedHashMap<String, Object>();
+        inventory.put("size", 27);
+        inventory.put("title", 123);
+        Map<String, Object> furniture = new LinkedHashMap<String, Object>();
+        furniture.put("inventory", inventory);
+        parseFurniture(furniture);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsEmptyInventoryTitle() {
+        Map<String, Object> inventory = new LinkedHashMap<String, Object>();
+        inventory.put("size", 27);
+        inventory.put("title", "   ");
+        Map<String, Object> furniture = new LinkedHashMap<String, Object>();
+        furniture.put("inventory", inventory);
+        parseFurniture(furniture);
+    }
+
     @Test public void parsesNeighborAnimationSynchronization() {
         Map<String, Object> animation = new LinkedHashMap<String, Object>();
         animation.put("use", "voxel:test_closed");

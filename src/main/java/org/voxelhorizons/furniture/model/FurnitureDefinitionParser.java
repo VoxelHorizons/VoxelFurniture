@@ -24,7 +24,7 @@ public final class FurnitureDefinitionParser {
     private static final Set<String> OFFSET_KEYS = new HashSet<String>(Arrays.asList("x", "y", "z", "rotation"));
     private static final Set<String> SEAT_KEYS = new HashSet<String>(Arrays.asList("x", "y", "z", "yaw"));
     private static final Set<String> ANIMATION_KEYS = new HashSet<String>(Arrays.asList("use", "close_delay", "sync_neighbors"));
-    private static final Set<String> INVENTORY_KEYS = new HashSet<String>(Arrays.asList("size"));
+    private static final Set<String> INVENTORY_KEYS = new HashSet<String>(Arrays.asList("size", "title"));
     private static final Set<String> IDLE_KEYS = new HashSet<String>(Arrays.asList("bob", "spin"));
     private static final Set<String> BOB_KEYS = new HashSet<String>(Arrays.asList("amplitude", "period_ticks"));
     private static final Set<String> SPIN_KEYS = new HashSet<String>(Arrays.asList("degrees_per_tick"));
@@ -221,9 +221,17 @@ public final class FurnitureDefinitionParser {
         }
 
         int inventorySize = 0;
+        String inventoryTitle = null;
         if (map.containsKey("inventory")) {
             Map<?, ?> inventory = nested(item, map.get("inventory"), "inventory");
             rejectUnknown(item, inventory, INVENTORY_KEYS, "inventory");
+            if (inventory.containsKey("title")) {
+                Object rawTitle = inventory.get("title");
+                if (!(rawTitle instanceof String) || ((String) rawTitle).trim().isEmpty()) {
+                    throw invalid(item, "inventory.title must be a non-empty string");
+                }
+                inventoryTitle = (String) rawTitle;
+            }
             if (!inventory.containsKey("size")) throw invalid(item, "inventory requires size");
             inventorySize = integer(item, inventory.get("size"), 0, "inventory.size");
             if (inventorySize < 9 || inventorySize > 54 || inventorySize % 9 != 0) {
@@ -254,7 +262,7 @@ public final class FurnitureDefinitionParser {
                 hitboxOffsetX, hitboxOffsetY, hitboxOffsetZ,
                 scale[0], scale[1], scale[2], viewDistance, rotationStep, placement, seat,
                 x, y, z, offsetRotation, blocks, states, animationUseModel, animationCloseDelay,
-                animationSyncNeighbors, idleAnimation, displayParts, interactionCommands, inventorySize));
+                animationSyncNeighbors, idleAnimation, displayParts, interactionCommands, inventorySize, inventoryTitle));
     }
 
     static float[] scale(ItemDefinition item, Object raw) {

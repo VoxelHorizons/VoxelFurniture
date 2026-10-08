@@ -89,7 +89,23 @@ For furniture without an inventory, right-clicking toggles `animation.use` on or
 with the furniture instance and survives restarts, content synchronization, blockstate refreshes, and dye changes.
 A dye interaction takes priority, so recolouring dyeable furniture does not also toggle its use animation. The animation
 model must reference a renderable VoxelCore item; an abstract item is recommended so it cannot be obtained directly.
-The inventory title uses the furniture item's resolved `display_name`, including legacy colors and VoxelCore font/UI placeholders.
+The inventory title can be specified independently with `properties.furniture.inventory.title`. It supports the same legacy color codes and VoxelCore font/UI placeholders as the previous inventory title. If `title` is omitted, the inventory continues to use the furniture item's resolved `display_name` for backwards compatibility. Within a custom title, `<name>` and `<item>` are interchangeable tokens that insert the furniture item's resolved `display_name` with legacy and RGB color/format codes stripped. The title's own color codes and VoxelCore font/UI placeholders are preserved. This allows an inherited furniture inventory title to display the child item's name automatically. Item display names are unaffected.
+
+For example:
+
+```yaml
+items:
+  oak_drawer_bench:
+    material: OAK_PLANKS
+    display_name: "&fOak Drawer Bench"
+    render:
+      model: voxel:furniture/basic/bench/oak_drawer_bench
+    properties:
+      furniture:
+        inventory:
+          title: ":offset_-8::generic_27_top::offset_-170:&r<name>"
+          size: 27
+```
 
 Set `animation.sync_neighbors: true` on persistent non-inventory animations to synchronize connected furniture.
 Right-clicking one opted-in instance chooses the new target state, then applies that same state to the entire contiguous
