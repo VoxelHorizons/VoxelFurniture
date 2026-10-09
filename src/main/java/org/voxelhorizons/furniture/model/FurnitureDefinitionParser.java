@@ -16,7 +16,7 @@ import java.util.Set;
 
 public final class FurnitureDefinitionParser {
     private static final Set<String> KEYS = new HashSet<String>(Arrays.asList(
-            "renderer", "model_item", "drop", "hitbox", "scale", "view_distance", "rotation_step", "placement", "seat", "offset", "blocks", "blockstates", "animation", "idle_animation", "display_parts", "interaction", "inventory"
+            "renderer", "model_item", "drop", "hitbox", "scale", "view_distance", "rotation_step", "placement", "seat", "offset", "blocks", "blockstates", "animation", "idle_animation", "display_parts", "interaction", "inventory", "value", "worth"
     ));
     private static final Set<String> HITBOX_KEYS = new HashSet<String>(Arrays.asList("width", "height", "offset"));
     private static final Set<String> HITBOX_OFFSET_KEYS = new HashSet<String>(Arrays.asList("x", "y", "z"));
@@ -51,6 +51,9 @@ public final class FurnitureDefinitionParser {
         if (!(raw instanceof Map)) throw invalid(item, "properties.furniture must be a mapping");
         Map<?, ?> map = (Map<?, ?>) raw;
         rejectUnknown(item, map, KEYS, "properties.furniture");
+
+        // Validate optional item worth without coupling content definitions to any economy plugin.
+        FurnitureValues.parse(map);
 
         FurnitureRendererType renderer = FurnitureRendererType.parse(map.get("renderer"), defaultRenderer);
         ContentID modelItem = contentId(item, map.get("model_item"), item.id(), "model_item");
