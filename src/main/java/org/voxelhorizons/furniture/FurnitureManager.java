@@ -22,6 +22,7 @@ import org.voxelhorizons.furniture.event.FurnitureBreakEvent;
 import org.voxelhorizons.furniture.event.FurniturePlaceEvent;
 import org.voxelhorizons.furniture.inventory.FurnitureInventoryHolder;
 import org.voxelhorizons.furniture.model.FurnitureDefinition;
+import org.voxelhorizons.furniture.model.FurnitureValues;
 import org.voxelhorizons.furniture.model.FurnitureDisplayPartDefinition;
 import org.voxelhorizons.furniture.model.FurnitureIdleAnimationDefinition;
 import org.voxelhorizons.furniture.model.FurnitureBlockDefinition;
@@ -98,6 +99,21 @@ public final class FurnitureManager {
         plugin.getServer().getScheduler().runTaskTimer(plugin, new Runnable() {
             @Override public void run() { animateIdleDisplays(); }
         }, 1L, 1L);
+    }
+
+    /** Explicit price metadata. No price means this furniture is not offered for sale. */
+    public java.util.OptionalDouble value(ContentID id) {
+        Optional<ItemDefinition> item = core.getItemManager().getDefinition(id);
+        return item.isPresent() ? FurnitureValues.fromItem(item.get()) : java.util.OptionalDouble.empty();
+    }
+
+    public java.util.OptionalDouble value(FurnitureInstance instance) {
+        return instance == null ? java.util.OptionalDouble.empty() : value(instance.definitionId());
+    }
+
+    public String displayName(ContentID id) {
+        Optional<ItemDefinition> item = core.getItemManager().getDefinition(id);
+        return item.isPresent() && item.get().displayName() != null ? item.get().displayName() : id.toString();
     }
 
     public Optional<FurnitureDefinition> definition(ContentID id) {
