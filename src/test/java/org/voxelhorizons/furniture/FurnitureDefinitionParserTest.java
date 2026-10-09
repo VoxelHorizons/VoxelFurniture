@@ -23,6 +23,34 @@ import static org.junit.Assert.assertTrue;
 
 public class FurnitureDefinitionParserTest {
 
+
+    @Test public void furnitureWorthCanBeSetAsValueOrWorth() {
+        Map<String, Object> attributes = new LinkedHashMap<String, Object>();
+        attributes.put("value", 250.5D);
+        assertTrue(parseFurniture(attributes) != null);
+        assertEquals(250.5D, org.voxelhorizons.furniture.model.FurnitureValues.parse(attributes).getAsDouble(), 0.001D);
+        attributes.clear();
+        attributes.put("worth", 0);
+        assertEquals(0.0D, org.voxelhorizons.furniture.model.FurnitureValues.parse(attributes).getAsDouble(), 0.001D);
+        attributes.clear();
+        assertFalse(org.voxelhorizons.furniture.model.FurnitureValues.parse(attributes).isPresent());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void furnitureWorthRejectsNegativePrice() {
+        Map<String, Object> furniture = new LinkedHashMap<String, Object>();
+        furniture.put("value", -10);
+        parseFurniture(furniture);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void furnitureWorthRejectsAmbiguousValueAndWorth() {
+        Map<String, Object> furniture = new LinkedHashMap<String, Object>();
+        furniture.put("value", 20);
+        furniture.put("worth", 30);
+        parseFurniture(furniture);
+    }
+
     @Test public void scalarScaleRemainsUniformAndBackwardsCompatible() {
         FurnitureDefinition definition = parse(2.0D);
 
