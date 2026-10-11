@@ -62,7 +62,7 @@ public final class FurnitureManager {
 
 
     private final VoxelCore core;
-    private final FurnitureDefinitionParser definitions;
+    private final FurnitureDefinitionCache parsedDefinitions;
     private final FurnitureRendererSelector renderers;
     private final Plugin plugin;
     private final FurnitureStore store;
@@ -83,7 +83,11 @@ public final class FurnitureManager {
                             FurnitureRendererSelector renderers, FurnitureStore store) {
         this.plugin = plugin;
         this.core = core;
-        this.definitions = definitions;
+        // Both placed furniture and abstract animation/model variants share
+        // the same revision-aware parser results. Never reparse per tick.
+        this.parsedDefinitions = new FurnitureDefinitionCache(
+                core.getItemManager()::getDefinition, definitions::parse,
+                () -> core.getContentRuntime().current().revision());
         this.renderers = renderers;
         this.store = store;
         this.instances = new LinkedHashMap<UUID, FurnitureInstance>(store.load());
@@ -117,28 +121,21 @@ public final class FurnitureManager {
     }
 
     public Optional<FurnitureDefinition> definition(ContentID id) {
-        Optional<ItemDefinition> item = core.getItemManager().getDefinition(id);
-        return item.isPresent() && !item.get().abstractDefinition()
-                ? definitions.parse(item.get()) : Optional.<FurnitureDefinition>empty();
+        return parsedDefinitions.definition(id);
     }
 
     /**
-     * Resolves the furniture properties belonging to a render/model variant. Unlike definition(),
-     * abstract items are valid here because animation and blockstate models are intentionally
-     * authored as abstract inherited items.
+     * Render/model variants may be abstract, unlike placeable furniture.
+     * The same cache covers both lookups and invalidates on VoxelCore reload.
      */
     private FurnitureDefinition renderDefinition(ContentID id, FurnitureDefinition fallback) {
-        Optional<ItemDefinition> item = core.getItemManager().getDefinition(id);
-        if (!item.isPresent()) return fallback;
-        Optional<FurnitureDefinition> parsed = definitions.parse(item.get());
-        return parsed.isPresent() ? parsed.get() : fallback;
+        return parsedDefinitions.renderDefinition(id, fallback);
     }
 
     public Map<ContentID, FurnitureDefinition> definitions() {
         Map<ContentID, FurnitureDefinition> result = new LinkedHashMap<ContentID, FurnitureDefinition>();
         for (ItemDefinition item : core.getItemRegistry().entries().values()) {
-            if (item.abstractDefinition()) continue;
-            Optional<FurnitureDefinition> definition = definitions.parse(item);
+            Optional<FurnitureDefinition> definition = parsedDefinitions.definition(item.id());
             if (definition.isPresent()) result.put(item.id(), definition.get());
         }
         return Collections.unmodifiableMap(result);
