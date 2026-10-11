@@ -28,12 +28,13 @@ final class FurnitureDefinitionCache {
     private long cachedRevision = Long.MIN_VALUE;
 
     private static final class Entry {
-        final boolean abstractItem;
-        final Optional<FurnitureDefinition> definition;
+        final ItemDefinition item;
+        // null means the parser was not invoked yet. Abstract variants are
+        // parsed only on render lookups, never in placeable-item enumeration.
+        Optional<FurnitureDefinition> parsed;
 
-        Entry(boolean abstractItem, Optional<FurnitureDefinition> definition) {
-            this.abstractItem = abstractItem;
-            this.definition = definition;
+        Entry(ItemDefinition item) {
+            this.item = item;
         }
     }
 
@@ -48,7 +49,8 @@ final class FurnitureDefinitionCache {
     /** Regular, placeable furniture never includes abstract VoxelCore items. */
     Optional<FurnitureDefinition> definition(ContentID id) {
         Entry entry = resolve(id);
-        return entry.abstractItem ? Optional.<FurnitureDefinition>empty() : entry.definition;
+        return entry.item == null || entry.item.abstractDefinition()
+                ? Optional.<FurnitureDefinition>empty() : parse(entry);
     }
 
     /**
@@ -56,7 +58,17 @@ final class FurnitureDefinitionCache {
      * animation.use variants). Missing/unrelated items use the fallback.
      */
     FurnitureDefinition renderDefinition(ContentID id, FurnitureDefinition fallback) {
-        return resolve(id).definition.orElse(fallback);
+        return parse(resolve(id)).orElse(fallback);
+    }
+
+    private Optional<FurnitureDefinition> parse(Entry entry) {
+        if (entry.item == null) return Optional.empty();
+        if (entry.parsed == null) {
+            // Exceptions are not cached: a bad parse is still reported, and
+            // the next load/revision attempt can retry validation normally.
+            entry.parsed = parser.apply(entry.item);
+        }
+        return entry.parsed;
     }
 
     private Entry resolve(ContentID id) {
@@ -70,10 +82,8 @@ final class FurnitureDefinitionCache {
         if (cached != null) return cached;
 
         Optional<ItemDefinition> item = lookup.apply(id);
-        Entry parsed = item.isPresent()
-                ? new Entry(item.get().abstractDefinition(), parser.apply(item.get()))
-                : new Entry(false, Optional.<FurnitureDefinition>empty());
-        resolved.put(id, parsed);
-        return parsed;
+        Entry entry = new Entry(item.orElse(null));
+        resolved.put(id, entry);
+        return entry;
     }
 }
