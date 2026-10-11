@@ -85,6 +85,11 @@ public final class FurnitureListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onCollisionInteract(PlayerInteractEvent event) {
         if (event.getClickedBlock() == null) return;
+        // Other plugins (notably showroom edit protection) can disable fixture
+        // activation while explicitly allowing the held item to place normally.
+        if (event.getAction() == org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK
+                && (event.useInteractedBlock() == org.bukkit.event.Event.Result.DENY
+                || event.useItemInHand() == org.bukkit.event.Event.Result.ALLOW)) return;
         Optional<FurnitureInstance> instance = furniture.byBlock(event.getClickedBlock());
         if (!instance.isPresent()) return;
         if (event.getAction() == org.bukkit.event.block.Action.LEFT_CLICK_BLOCK) {
@@ -103,7 +108,11 @@ public final class FurnitureListener implements Listener {
 
     private boolean allowsBlockPlacement(Player player, ItemStack held, FurnitureDefinition definition) {
         if (definition == null) return false;
-        if (definition.hasInventory() && !player.isSneaking()) return false;
+        // An intentional interaction wins over placement unless the player
+        // crouches. Noninteractive furniture remains a vanilla building surface.
+        if (!player.isSneaking() && (definition.hasInventory()
+                || definition.animationUseModel() != null
+                || definition.hasInteractionCommands())) return false;
         if (held == null || held.getType() == Material.AIR || !held.getType().isBlock()) return false;
 
         Optional<ContentID> heldId = core.getItemManager().identify(held);
