@@ -67,6 +67,26 @@ public class FurnitureDefinitionCacheTest {
         assertEquals("1200 idle animation ticks must not reparse",2,parses.get());
     }
 
+    @Test public void placeableLookupNeverParsesAbstractContent(){
+        Map<ContentID,ItemDefinition> items=new HashMap<ContentID,ItemDefinition>();
+        items.put(VARIANT,furniture(VARIANT,true,2));
+        final AtomicInteger parses=new AtomicInteger();
+        FurnitureDefinitionCache cache=new FurnitureDefinitionCache(
+                id->Optional.ofNullable(items.get(id)),
+                item->{parses.incrementAndGet();throw new IllegalArgumentException("invalid model variant");},
+                ()->123L);
+        assertFalse(cache.definition(VARIANT).isPresent());
+        assertFalse(cache.definition(VARIANT).isPresent());
+        assertEquals("abstract entries must not be validated as placeable",0,parses.get());
+        try {
+            cache.renderDefinition(VARIANT,null);
+            fail("rendering should still report invalid abstract content");
+        } catch (IllegalArgumentException expected){
+            assertEquals("invalid model variant",expected.getMessage());
+        }
+        assertEquals(1,parses.get());
+    }
+
     @Test public void changingContentRevisionInvalidatesBothBaseAndVariant(){
         Map<ContentID,ItemDefinition> items=new HashMap<ContentID,ItemDefinition>();
         items.put(OAK,furniture(OAK,false,1));
