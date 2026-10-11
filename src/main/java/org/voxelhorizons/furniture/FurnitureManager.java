@@ -135,6 +135,9 @@ public final class FurnitureManager {
     public Map<ContentID, FurnitureDefinition> definitions() {
         Map<ContentID, FurnitureDefinition> result = new LinkedHashMap<ContentID, FurnitureDefinition>();
         for (ItemDefinition item : core.getItemRegistry().entries().values()) {
+            // Keep abstract authored variants out of placeable listings and
+            // validation. They are parsed lazily only if used by a renderer.
+            if (item.abstractDefinition()) continue;
             Optional<FurnitureDefinition> definition = parsedDefinitions.definition(item.id());
             if (definition.isPresent()) result.put(item.id(), definition.get());
         }
