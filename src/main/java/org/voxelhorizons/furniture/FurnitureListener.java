@@ -88,7 +88,8 @@ public final class FurnitureListener implements Listener {
         // Other plugins (notably showroom edit protection) can disable fixture
         // activation while explicitly allowing the held item to place normally.
         if (event.getAction() == org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK
-                && event.useInteractedBlock() == org.bukkit.event.Event.Result.DENY) return;
+                && (event.useInteractedBlock() == org.bukkit.event.Event.Result.DENY
+                || event.useItemInHand() == org.bukkit.event.Event.Result.ALLOW)) return;
         Optional<FurnitureInstance> instance = furniture.byBlock(event.getClickedBlock());
         if (!instance.isPresent()) return;
         if (event.getAction() == org.bukkit.event.block.Action.LEFT_CLICK_BLOCK) {
