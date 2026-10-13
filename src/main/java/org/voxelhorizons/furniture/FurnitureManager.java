@@ -181,7 +181,7 @@ public final class FurnitureManager {
         if (originIndex.containsKey(origin) || blockIndex.containsKey(origin)
                 || !canPlace(location.getWorld(), collisionBlocks)) return Optional.empty();
         if (player != null) {
-            if (!plugin.protection().allowsFootprint(player, location, collisionBlocks,
+            if (!((VoxelFurniture) plugin).protection().allowsFootprint(player, location, collisionBlocks,
                     FurnitureProtection.Action.PLACE)) return Optional.empty();
             FurniturePlaceEvent event = new FurniturePlaceEvent(player, definition, location);
             Bukkit.getPluginManager().callEvent(event);
