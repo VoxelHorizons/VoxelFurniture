@@ -29,10 +29,7 @@
             <id>enginehub</id>
             <url>https://maven.enginehub.org/repo/</url>
         </repository>
-        <repository>
-            <id>incredibleplugins</id>
-            <url>https://repo.incredibleplugins.com/releases</url>
-        </repository>
+        
     </repositories>
 
     <dependencies>
@@ -66,12 +63,7 @@
             <version>7.0.13</version>
             <scope>provided</scope>
         </dependency>
-        <dependency>
-            <groupId>com.incredibleplugins</groupId>
-            <artifactId>lands-api</artifactId>
-            <version>7.25.4</version>
-            <scope>provided</scope>
-        </dependency>
+        
     </dependencies>
 
     <build>
