@@ -13,6 +13,15 @@ import java.util.logging.Level;
 
 public final class VoxelFurniture extends JavaPlugin {
     private FurnitureManager furnitureManager;
+    private FurnitureProtection protection;
+
+    @Override
+    public void onLoad() {
+        // WorldGuard's custom flag registry locks during enable.
+        FurnitureProtection.registerWorldGuardFlags(this);
+    }
+
+    public FurnitureProtection protection() { return protection; }
 
     @Override
     public void onEnable() {
@@ -32,10 +41,12 @@ public final class VoxelFurniture extends JavaPlugin {
             FurnitureDefinitionParser parser = new FurnitureDefinitionParser(renderer, rotationStep);
             furnitureManager = new FurnitureManager(this, core, parser, new FurnitureRendererSelector(core),
                     new FurnitureStore(getDataFolder().toPath().resolve("furniture.yml")));
+            protection = new FurnitureProtection(this);
+            getServer().getPluginManager().registerEvents(protection, this);
             furnitureManager.validateDefinitions();
             furnitureManager.synchronizeDefinitions();
             getServer().getPluginManager().registerEvents(new FurnitureListener(core, furnitureManager,
-                    getConfig().getBoolean("protect-entities", true)), this);
+                    getConfig().getBoolean("protect-entities", true), protection), this);
             new FurniturePickListener(this, core, furnitureManager).register();
 
             FurnitureCommand executor = new FurnitureCommand(core, furnitureManager);
