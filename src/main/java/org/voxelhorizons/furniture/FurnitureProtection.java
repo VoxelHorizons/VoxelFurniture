@@ -1,6 +1,6 @@
 package org.voxelhorizons.furniture;
 
-import com.sk89q.worldedit.bukkit.BukkitAdapter;
+import com.sk89q.worldedit.bukkit.BukkitWorld;
 import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.bukkit.WorldGuardPlugin;
 import com.sk89q.worldguard.protection.flags.Flag;
@@ -127,20 +127,25 @@ public final class FurnitureProtection implements Listener {
             }
         }
 
+        private static com.sk89q.worldedit.util.Location worldEditLocation(Location at) {
+            return new com.sk89q.worldedit.util.Location(new BukkitWorld(at.getWorld()),
+                    at.getX(), at.getY(), at.getZ());
+        }
+
         private static RegionQuery query() {
             return WorldGuard.getInstance().getPlatform().getRegionContainer().createQuery();
         }
 
         private static boolean explicitAllow(Player player, Location at, Action action) {
             StateFlag flag = forAction(action);
-            return flag != null && query().queryState(BukkitAdapter.adapt(at),
+            return flag != null && query().queryState(worldEditLocation(at),
                     WorldGuardPlugin.inst().wrapPlayer(player), flag) == StateFlag.State.ALLOW;
         }
 
         private static boolean allows(Player player, Location at, Action action) {
             StateFlag flag = forAction(action);
             if (flag == null) return false; // registration failure must not open protected regions
-            com.sk89q.worldedit.util.Location worldEditLocation = BukkitAdapter.adapt(at);
+            com.sk89q.worldedit.util.Location worldEditLocation = worldEditLocation(at);
             com.sk89q.worldguard.LocalPlayer localPlayer = WorldGuardPlugin.inst().wrapPlayer(player);
             RegionQuery regions = query();
             if (action == Action.INVENTORY) {
