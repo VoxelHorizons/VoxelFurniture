@@ -99,6 +99,8 @@ public final class FurnitureListener implements Listener {
         FurnitureDefinition resolved = furniture.definition(instance.get().definitionId()).orElse(null);
         FurnitureProtection.Action action = event.getAction() == org.bukkit.event.block.Action.LEFT_CLICK_BLOCK
                 ? FurnitureProtection.Action.BREAK
+                : isDyeAction(event.getPlayer(), event.getItem())
+                ? FurnitureProtection.Action.DYE
                 : resolved != null && resolved.hasInventory() && !resolved.hasInteractionCommands()
                 ? FurnitureProtection.Action.INVENTORY : FurnitureProtection.Action.INTERACT;
         if (event.isCancelled() && !protection.explicitWorldGuardAllow(event.getPlayer(),
@@ -188,15 +190,18 @@ public final class FurnitureListener implements Listener {
         }
     }
 
-    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = false)
     public void onDamage(EntityDamageEvent event) {
         Optional<FurnitureInstance> instance = furniture.byEntity(event.getEntity().getUniqueId());
         if (!instance.isPresent()) return;
+        boolean cancelledBefore = event.isCancelled();
         event.setCancelled(true);
         if (!(event instanceof EntityDamageByEntityEvent)) return;
         EntityDamageByEntityEvent byEntity = (EntityDamageByEntityEvent) event;
         if (!(byEntity.getDamager() instanceof Player)) return;
         Player player = (Player) byEntity.getDamager();
+        if (cancelledBefore && !protection.explicitWorldGuardAllow(player,
+                instance.get().location(), FurnitureProtection.Action.BREAK)) return;
         if (player.hasPermission("voxelfurniture.break") &&
                 protection.allows(player, instance.get().location(), FurnitureProtection.Action.BREAK))
             furniture.breakFurniture(player, instance.get());
@@ -207,11 +212,13 @@ public final class FurnitureListener implements Listener {
         Optional<FurnitureInstance> instance = furniture.byEntity(event.getRightClicked().getUniqueId());
         if (!instance.isPresent()) return;
         FurnitureDefinition resolved = furniture.definition(instance.get().definitionId()).orElse(null);
-        FurnitureProtection.Action action = resolved != null && resolved.hasInventory()
-                && !resolved.hasInteractionCommands() ? FurnitureProtection.Action.INVENTORY : FurnitureProtection.Action.INTERACT;
+        ItemStack held = event.getPlayer().getInventory().getItemInMainHand();
+        FurnitureProtection.Action action = isDyeAction(event.getPlayer(), held)
+                ? FurnitureProtection.Action.DYE
+                : resolved != null && resolved.hasInventory() && !resolved.hasInteractionCommands()
+                ? FurnitureProtection.Action.INVENTORY : FurnitureProtection.Action.INTERACT;
         if (event.isCancelled() && !protection.explicitWorldGuardAllow(event.getPlayer(),
                 instance.get().location(), action)) return;
-        ItemStack held = event.getPlayer().getInventory().getItemInMainHand();
         if (tryDye(event.getPlayer(), instance.get(), held)) { event.setCancelled(true); return; }
         FurnitureDefinition definition = furniture.definition(instance.get().definitionId()).orElse(null);
         if (allowsBlockPlacement(event.getPlayer(), held, definition)) {
@@ -268,6 +275,11 @@ public final class FurnitureListener implements Listener {
         } catch (ReflectiveOperationException ignored) {
             return resolved;
         }
+    }
+
+    private static boolean isDyeAction(Player player, ItemStack held) {
+        return player.hasPermission("voxelfurniture.dye")
+                && DyeableItemListener.dyeColor(held) != null;
     }
 
     private boolean tryDye(Player player, FurnitureInstance instance, ItemStack held) {
