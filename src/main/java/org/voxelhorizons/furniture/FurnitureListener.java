@@ -41,11 +41,13 @@ public final class FurnitureListener implements Listener {
     private final VoxelCore core;
     private final FurnitureManager furniture;
     private final boolean protectEntities;
+    private final FurnitureProtection protection;
 
-    public FurnitureListener(VoxelCore core, FurnitureManager furniture, boolean protectEntities) {
+    public FurnitureListener(VoxelCore core, FurnitureManager furniture, boolean protectEntities, FurnitureProtection protection) {
         this.core = core;
         this.furniture = furniture;
         this.protectEntities = protectEntities;
+        this.protection = protection;
     }
 
     @EventHandler
@@ -53,12 +55,16 @@ public final class FurnitureListener implements Listener {
         furniture.onChunkLoad(event.getChunk());
     }
 
-    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = false)
     public void onPlace(PlayerInteractEvent event) {
         if (event.getAction() != org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK || event.getClickedBlock() == null) return;
         if (furniture.byBlock(event.getClickedBlock()).isPresent()) return;
         if (event.getHand() != null && event.getHand() != EquipmentSlot.HAND) return;
         Player player = event.getPlayer();
+        if (event.useItemInHand() == org.bukkit.event.Event.Result.ALLOW) return;
+        if (event.isCancelled() && !protection.explicitWorldGuardAllow(player,
+                event.getClickedBlock().getRelative(event.getBlockFace()).getLocation(),
+                FurnitureProtection.Action.PLACE)) return;
         ItemStack held = player.getInventory().getItemInMainHand();
         Optional<ContentID> id = core.getItemManager().identify(held);
         if (!id.isPresent()) return;
@@ -73,6 +79,7 @@ public final class FurnitureListener implements Listener {
 
         Block target = event.getClickedBlock().getRelative(event.getBlockFace());
         if (!FurnitureManager.isReplaceable(target.getType())) return;
+        if (!protection.allows(player, target.getLocation(), FurnitureProtection.Action.PLACE)) return;
         Location location = target.getLocation().add(0.5D, 0.0D, 0.5D);
         if (!furniture.place(player, definition.get(), location).isPresent()) return;
         event.setCancelled(true);
@@ -82,19 +89,24 @@ public final class FurnitureListener implements Listener {
         }
     }
 
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
     public void onCollisionInteract(PlayerInteractEvent event) {
         if (event.getClickedBlock() == null) return;
-        // Other plugins (notably showroom edit protection) can disable fixture
-        // activation while explicitly allowing the held item to place normally.
-        if (event.getAction() == org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK
-                && (event.useInteractedBlock() == org.bukkit.event.Event.Result.DENY
-                || event.useItemInHand() == org.bukkit.event.Event.Result.ALLOW)) return;
+        // Showroom editors deliberately set useItemInHand=ALLOW to place on furniture.
+        if (event.useItemInHand() == org.bukkit.event.Event.Result.ALLOW) return;
         Optional<FurnitureInstance> instance = furniture.byBlock(event.getClickedBlock());
         if (!instance.isPresent()) return;
+        FurnitureDefinition resolved = furniture.definition(instance.get().definitionId()).orElse(null);
+        FurnitureProtection.Action action = event.getAction() == org.bukkit.event.block.Action.LEFT_CLICK_BLOCK
+                ? FurnitureProtection.Action.BREAK
+                : resolved != null && resolved.hasInventory() && !resolved.hasInteractionCommands()
+                ? FurnitureProtection.Action.INVENTORY : FurnitureProtection.Action.INTERACT;
+        if (event.isCancelled() && !protection.explicitWorldGuardAllow(event.getPlayer(),
+                instance.get().location(), action)) return;
         if (event.getAction() == org.bukkit.event.block.Action.LEFT_CLICK_BLOCK) {
             event.setCancelled(true);
-            if (event.getPlayer().hasPermission("voxelfurniture.break")) {
+            if (event.getPlayer().hasPermission("voxelfurniture.break") &&
+                    protection.allows(event.getPlayer(), instance.get().location(), FurnitureProtection.Action.BREAK)) {
                 furniture.breakFurniture(event.getPlayer(), instance.get());
             }
         } else if (event.getAction() == org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK) {
@@ -119,12 +131,16 @@ public final class FurnitureListener implements Listener {
         return !heldId.isPresent() || !furniture.definition(heldId.get()).isPresent();
     }
 
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
     public void onCollisionBreak(BlockBreakEvent event) {
         Optional<FurnitureInstance> instance = furniture.byBlock(event.getBlock());
         if (!instance.isPresent()) return;
+        boolean cancelled = event.isCancelled();
         event.setCancelled(true);
-        if (event.getPlayer().hasPermission("voxelfurniture.break")) {
+        if (cancelled && !protection.explicitWorldGuardAllow(event.getPlayer(),
+                instance.get().location(), FurnitureProtection.Action.BREAK)) return;
+        if (event.getPlayer().hasPermission("voxelfurniture.break") &&
+                protection.allows(event.getPlayer(), instance.get().location(), FurnitureProtection.Action.BREAK)) {
             furniture.breakFurniture(event.getPlayer(), instance.get());
         }
     }
@@ -181,13 +197,20 @@ public final class FurnitureListener implements Listener {
         EntityDamageByEntityEvent byEntity = (EntityDamageByEntityEvent) event;
         if (!(byEntity.getDamager() instanceof Player)) return;
         Player player = (Player) byEntity.getDamager();
-        if (player.hasPermission("voxelfurniture.break")) furniture.breakFurniture(player, instance.get());
+        if (player.hasPermission("voxelfurniture.break") &&
+                protection.allows(player, instance.get().location(), FurnitureProtection.Action.BREAK))
+            furniture.breakFurniture(player, instance.get());
     }
 
-    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = false)
     public void onInteract(PlayerInteractEntityEvent event) {
         Optional<FurnitureInstance> instance = furniture.byEntity(event.getRightClicked().getUniqueId());
         if (!instance.isPresent()) return;
+        FurnitureDefinition resolved = furniture.definition(instance.get().definitionId()).orElse(null);
+        FurnitureProtection.Action action = resolved != null && resolved.hasInventory()
+                && !resolved.hasInteractionCommands() ? FurnitureProtection.Action.INVENTORY : FurnitureProtection.Action.INTERACT;
+        if (event.isCancelled() && !protection.explicitWorldGuardAllow(event.getPlayer(),
+                instance.get().location(), action)) return;
         ItemStack held = event.getPlayer().getInventory().getItemInMainHand();
         if (tryDye(event.getPlayer(), instance.get(), held)) { event.setCancelled(true); return; }
         FurnitureDefinition definition = furniture.definition(instance.get().definitionId()).orElse(null);
@@ -249,7 +272,8 @@ public final class FurnitureListener implements Listener {
 
     private boolean tryDye(Player player, FurnitureInstance instance, ItemStack held) {
         Integer color = DyeableItemListener.dyeColor(held);
-        if (color == null || !player.hasPermission("voxelfurniture.dye")) return false;
+        if (color == null || !player.hasPermission("voxelfurniture.dye") ||
+                !protection.allows(player, instance.location(), FurnitureProtection.Action.DYE)) return false;
         if (!furniture.dye(instance, color.intValue())) return false;
         if (player.getGameMode() != org.bukkit.GameMode.CREATIVE) {
             if (held.getAmount() <= 1) player.getInventory().setItemInMainHand(null);
