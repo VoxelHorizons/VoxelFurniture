@@ -8,3 +8,8 @@ default-rotation-step: 45.0
 
 # Protect managed entities from unrelated damage and manipulation.
 protect-entities: true
+
+# Optional integrations; both region systems must permit the action when enabled.
+protection:
+  worldguard: true
+  lands: true
