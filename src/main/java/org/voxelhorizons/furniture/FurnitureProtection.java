@@ -25,6 +25,8 @@ import org.voxelhorizons.furniture.event.FurnitureInteractEvent;
 import org.voxelhorizons.furniture.event.FurniturePlaceEvent;
 import org.voxelhorizons.furniture.model.FurnitureDefinition;
 import org.voxelhorizons.furniture.model.FurnitureInstance;
+import org.voxelhorizons.furniture.model.FurnitureBlockPosition;
+import java.util.List;
 
 /** Optional region integrations. Both protection systems must allow an operation. */
 public final class FurnitureProtection implements Listener {
@@ -58,6 +60,17 @@ public final class FurnitureProtection implements Listener {
         return !landsEnabled || LandsHook.allows(lands, player, at, action);
     }
 
+    /** Apply protection to every occupied collision block, not just the furniture origin. */
+    public boolean allowsFootprint(Player player, Location origin,
+                                   List<FurnitureBlockPosition> positions, Action action) {
+        if (!allows(player, origin, action)) return false;
+        for (FurnitureBlockPosition block : positions) {
+            Location target = new Location(origin.getWorld(), block.x(), block.y(), block.z());
+            if (!allows(player, target, action)) return false;
+        }
+        return true;
+    }
+
     /** Used only to recover events cancelled by WorldGuard, not to un-cancel vanilla use. */
     public boolean explicitWorldGuardAllow(Player player, Location at, Action action) {
         return worldGuard && WorldGuardHook.explicitAllow(player, at, action);
@@ -70,7 +83,8 @@ public final class FurnitureProtection implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onFurnitureBreak(FurnitureBreakEvent event) {
-        if (!allows(event.getPlayer(), event.getInstance().location(), Action.BREAK)) event.setCancelled(true);
+        if (!allowsFootprint(event.getPlayer(), event.getInstance().location(),
+                event.getInstance().blocks(), Action.BREAK)) event.setCancelled(true);
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
