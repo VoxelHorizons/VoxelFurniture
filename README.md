@@ -10,7 +10,7 @@ rendering, interaction, persistence and removal of furniture in the world.
 - Minecraft 1.12 through 1.19.3: invisible armor-stand fallback.
 - `renderer: AUTO` selects the best available implementation at runtime.
 
-Folia is not supported. Paper is detected naturally through the Bukkit API without making Paper mandatory.
+The universal plugin build supports Minecraft 1.12 through 26.3; VoxelCore must be installed with the matching server-version distribution. Paper is detected naturally through the Bukkit API without making Paper mandatory. Folia is not supported.
 
 ## Content format
 
