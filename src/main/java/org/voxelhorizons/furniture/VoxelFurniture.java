@@ -4,6 +4,7 @@ import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.voxelhorizons.VoxelCore;
+import org.voxelhorizons.furniture.bedrock.BedrockProjectionPublisher;
 import org.voxelhorizons.furniture.model.FurnitureDefinitionParser;
 import org.voxelhorizons.furniture.model.FurnitureRendererType;
 import org.voxelhorizons.furniture.render.FurnitureRendererSelector;
@@ -13,6 +14,7 @@ import java.util.logging.Level;
 
 public final class VoxelFurniture extends JavaPlugin {
     private FurnitureManager furnitureManager;
+    private BedrockProjectionPublisher bedrockPublisher;
 
     @Override
     public void onEnable() {
@@ -43,6 +45,8 @@ public final class VoxelFurniture extends JavaPlugin {
             if (command == null) throw new IllegalStateException("voxelfurniture command is missing from plugin.yml");
             command.setExecutor(executor);
             command.setTabCompleter(executor);
+            bedrockPublisher = BedrockProjectionPublisher.start(this,"furniture",
+                    () -> furnitureManager.bedrockSnapshot().asMap());
             getLogger().info("VoxelFurniture ready with " + furnitureManager.definitions().size()
                     + " definitions and " + furnitureManager.instances().size() + " placed instances.");
         } catch (RuntimeException exception) {
@@ -53,6 +57,7 @@ public final class VoxelFurniture extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (bedrockPublisher != null) bedrockPublisher.close();
         if (furnitureManager != null) furnitureManager.shutdown();
     }
 
