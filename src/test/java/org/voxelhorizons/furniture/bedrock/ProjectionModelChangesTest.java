@@ -44,7 +44,12 @@ public final class ProjectionModelChangesTest {
         Map<UUID,String> dyed=ProjectionModelChanges.visualModels(feed(display,"voxel:bench_red",part,"voxel:cushion"),"furniture");
         assertEquals(Collections.singleton(display),ProjectionModelChanges.changed(before,dyed));
         assertTrue(ProjectionModelChanges.changed(before,before).isEmpty());
-        assertTrue("New entities are spawned normally",ProjectionModelChanges.changed(Collections.<UUID,String>emptyMap(),dyed).isEmpty());
+        assertTrue("First snapshot re-sends nothing",ProjectionModelChanges.changed(Collections.<UUID,String>emptyMap(),dyed).isEmpty());
+        UUID placed=UUID.randomUUID(),placedPart=UUID.randomUUID();
+        Map<UUID,String> withPlacement=new java.util.HashMap<UUID,String>(before);
+        withPlacement.putAll(ProjectionModelChanges.visualModels(feed(placed,"voxel:bench",placedPart,"voxel:cushion"),"furniture"));
+        assertEquals("Newly placed displays are re-sent once the feed lists them",
+                new HashSet<UUID>(Arrays.asList(placed,placedPart)),ProjectionModelChanges.changed(before,withPlacement));
         assertTrue("Removed entities are despawned normally",ProjectionModelChanges.changed(before,Collections.<UUID,String>emptyMap()).isEmpty());
     }
 }
