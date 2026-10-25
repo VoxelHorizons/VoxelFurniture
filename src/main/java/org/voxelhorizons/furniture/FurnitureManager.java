@@ -18,6 +18,7 @@ import org.bukkit.inventory.ItemStack;
 import org.voxelhorizons.VoxelCore;
 import org.voxelhorizons.content.ContentID;
 import org.voxelhorizons.content.item.ItemDefinition;
+import org.voxelhorizons.furniture.bedrock.BedrockFurnitureSnapshot;
 import org.voxelhorizons.furniture.event.FurnitureBreakEvent;
 import org.voxelhorizons.furniture.event.FurniturePlaceEvent;
 import org.voxelhorizons.furniture.inventory.FurnitureInventoryHolder;
@@ -156,6 +157,17 @@ public final class FurnitureManager {
 
     public Collection<FurnitureInstance> instances() {
         return Collections.unmodifiableCollection(new ArrayList<FurnitureInstance>(instances.values()));
+    }
+
+    /**
+     * Capture a read-only projection for a future Geyser extension. Must run on
+     * Paper's main thread. It never mutates, spawns or duplicates the real entities.
+     */
+    public BedrockFurnitureSnapshot bedrockSnapshot() {
+        if (!Bukkit.isPrimaryThread())
+            throw new IllegalStateException("Bedrock furniture snapshots must be captured on the server thread");
+        return BedrockFurnitureSnapshot.capture(
+                core.getContentRuntime().current().revision(), instances.values(), definitions());
     }
 
     public Optional<FurnitureInstance> place(Player player, FurnitureDefinition definition, Location location) {
