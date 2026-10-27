@@ -62,9 +62,11 @@ public final class FurnitureListener implements Listener {
         if (event.getHand() != null && event.getHand() != EquipmentSlot.HAND) return;
         Player player = event.getPlayer();
         if (event.useItemInHand() == org.bukkit.event.Event.Result.ALLOW) return;
-        if (event.isCancelled() && !protection.explicitWorldGuardAllow(player,
-                event.getClickedBlock().getRelative(event.getBlockFace()).getLocation(),
-                FurnitureProtection.Action.PLACE)) return;
+        // Never recover a cancelled placement. A cancellation may come from
+        // WorldGuard, WorldGuardExtraFlags, Lands or another plugin; this event
+        // does not identify which one denied it. Custom region flags must not
+        // override those independent cancellations.
+        if (event.isCancelled()) return;
         ItemStack held = player.getInventory().getItemInMainHand();
         Optional<ContentID> id = core.getItemManager().identify(held);
         if (!id.isPresent()) return;
