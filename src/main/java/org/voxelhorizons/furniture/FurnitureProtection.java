@@ -67,9 +67,24 @@ public final class FurnitureProtection implements Listener {
         return true;
     }
 
-    /** Used only to recover events cancelled by WorldGuard, not to un-cancel vanilla use. */
+    /**
+     * Only recover interactions/inventories explicitly allowed by the active region
+     * policy. A cancelled PLACE/BREAK/DYE event must never be reopened by a custom
+     * state flag; other plugins can have cancelled those events for independent reasons.
+     */
     public boolean explicitWorldGuardAllow(Player player, Location at, Action action) {
+        if (action != Action.INTERACT && action != Action.INVENTORY) return false;
         return worldGuard && WorldGuardHook.explicitAllow(player, at, action);
+    }
+
+    /** WorldGuard custom ALLOW must not defeat BUILD for destructive actions. */
+    static boolean structuralAllowed(boolean buildAllowed, StateFlag.State customState) {
+        return buildAllowed && customState != StateFlag.State.DENY;
+    }
+
+    /** An unset inventory rule inherits furniture interaction policy. */
+    static StateFlag inventoryFallback(StateFlag.State inventoryState, StateFlag.State interactState) {
+        return inventoryState == null ? interactState : inventoryState;
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -138,24 +153,52 @@ public final class FurnitureProtection implements Listener {
 
         private static boolean explicitAllow(Player player, Location at, Action action) {
             StateFlag flag = forAction(action);
-            return flag != null && query().queryState(worldEditLocation(at),
-                    WorldGuardPlugin.inst().wrapPlayer(player), flag) == StateFlag.State.ALLOW;
+            if (flag == null || player == null || at == null || at.getWorld() == null) return false;
+            RegionQuery regions = query();
+            com.sk89q.worldedit.util.Location location = worldEditLocation(at);
+            com.sk89q.worldguard.LocalPlayer local = WorldGuardPlugin.inst().wrapPlayer(player);
+            StateFlag.State state = regions.queryState(location, local, flag);
+            if (action == Action.INVENTORY && state == null && interact != null) {
+                // A Hub granting sitting/interactions can also open public storage
+                // until an explicit furniture-inventory flag changes that policy.
+                state = regions.queryState(location, local, interact);
+            }
+            return state == StateFlag.State.ALLOW;
         }
 
         private static boolean allows(Player player, Location at, Action action) {
             StateFlag flag = forAction(action);
-            if (flag == null) return false; // registration failure must not open protected regions
-            com.sk89q.worldedit.util.Location worldEditLocation = worldEditLocation(at);
-            com.sk89q.worldguard.LocalPlayer localPlayer = WorldGuardPlugin.inst().wrapPlayer(player);
+            if (flag == null) return false; // an unregistered flag must not grant access
+            com.sk89q.worldedit.util.Location location = worldEditLocation(at);
+            com.sk89q.worldguard.LocalPlayer local = WorldGuardPlugin.inst().wrapPlayer(player);
             RegionQuery regions = query();
+
+            if (action == Action.PLACE || action == Action.BREAK || action == Action.DYE) {
+                // WorldGuard's testBuild(location, player, customFlag) intentionally
+                // permits a custom ALLOW to override vanilla BUILD DENY. That is
+                // unsafe for furniture's physical mutation in protected Hubs.
+                // Use BUILD and the dedicated flag as independent restrictions.
+                boolean canBuild = regions.testState(location, local,
+                        com.sk89q.worldguard.protection.flags.Flags.BUILD);
+                StateFlag.State customState = regions.queryState(location, local, flag);
+                return structuralAllowed(canBuild, customState);
+            }
+
             if (action == Action.INVENTORY) {
-                // An explicit chest-access deny always blocks storage, even if the
-                // general furniture-interact flag was permitted for Hub decorations.
-                if (regions.queryState(worldEditLocation, localPlayer,
+                // A specific inventory rule takes precedence. When unset, inherit
+                // the interaction flag, so public Hub seating/storage work together.
+                // CHEST_ACCESS remains an independent explicit deny.
+                if (regions.queryState(location, local,
                         com.sk89q.worldguard.protection.flags.Flags.CHEST_ACCESS) == StateFlag.State.DENY)
                     return false;
+                if (interact == null) return false;
+                StateFlag.State inventoryState = regions.queryState(location, local, inventory);
+                if (inventoryState == StateFlag.State.DENY) return false;
+                if (inventoryState == StateFlag.State.ALLOW) return true;
+                return regions.testBuild(location, local, interact);
             }
-            return regions.testBuild(worldEditLocation, localPlayer, flag);
+            // Interactions may be explicitly allowed in a build-protected Hub.
+            return regions.testBuild(location, local, flag);
         }
     }
 
