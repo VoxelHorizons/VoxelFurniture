@@ -61,7 +61,8 @@ public final class FurnitureListener implements Listener {
         if (furniture.byBlock(event.getClickedBlock()).isPresent()) return;
         if (event.getHand() != null && event.getHand() != EquipmentSlot.HAND) return;
         Player player = event.getPlayer();
-        if (event.useItemInHand() == org.bukkit.event.Event.Result.ALLOW) return;
+        // ALLOW on held item use (e.g. showroom edit mode) is not itself a
+        // reason to bypass our own recognized furniture placement handler.
         // Never recover a cancelled placement. A cancellation may come from
         // WorldGuard, WorldGuardExtraFlags, Lands or another plugin; this event
         // does not identify which one denied it. Custom region flags must not
