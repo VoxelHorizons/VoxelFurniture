@@ -47,7 +47,7 @@ Lands uses its native role checks, including trusted roles and sub-areas, via th
 
 A Lands-denied inventory cannot be opened just because WorldGuard grants `voxel-*-inventory`. Conversely, a Lands-trusted player must also satisfy the WorldGuard checks where WorldGuard protects the same coordinates.
 
-VoxelVehicles also retains its existing per-vehicle owner UUID and `publicAccess` logic. A Lands member cannot override a private vehicle's personal owner access rule.
+**Vehicles are separate:** this PR only changes VoxelFurniture. VoxelVehicles has its own [WorldGuard/Lands PR #19](https://github.com/VoxelHorizons/VoxelVehicles/pull/19). Private vehicle ownership/access restrictions are **not currently owner-verified as effective**; the live bypass is tracked in [VoxelVehicles #22](https://github.com/VoxelHorizons/VoxelVehicles/issues/22). Do not assume Lands membership is sufficient or that vehicle ownership has already been secured.
 
 ## Manual acceptance test matrix
 
