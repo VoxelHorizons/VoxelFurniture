@@ -77,16 +77,6 @@ public final class FurnitureProtection implements Listener {
         return worldGuard && WorldGuardHook.explicitAllow(player, at, action);
     }
 
-    /** WorldGuard custom ALLOW must not defeat BUILD for destructive actions. */
-    static boolean structuralAllowed(boolean buildAllowed, StateFlag.State customState) {
-        return buildAllowed && customState != StateFlag.State.DENY;
-    }
-
-    /** An unset inventory rule inherits furniture interaction policy. */
-    static StateFlag inventoryFallback(StateFlag.State inventoryState, StateFlag.State interactState) {
-        return inventoryState == null ? interactState : inventoryState;
-    }
-
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onFurniturePlace(FurniturePlaceEvent event) {
         if (!allows(event.getPlayer(), event.getLocation(), Action.PLACE)) event.setCancelled(true);
@@ -108,8 +98,20 @@ public final class FurnitureProtection implements Listener {
         if (!allows(event.getPlayer(), instance.location(), action)) event.setCancelled(true);
     }
 
-    private static final class WorldGuardHook {
+    // Keep all WorldGuard-specific types in this nested class: on 1.12.2 or
+    // servers without WorldGuard, the outer protection hook must still load.
+    static final class WorldGuardHook {
         private static StateFlag place, breakFlag, interact, inventory, dye;
+
+        /** A custom ALLOW never overrides BUILD when physically changing furniture. */
+        static boolean structuralAllowed(boolean buildAllowed, StateFlag.State customState) {
+            return buildAllowed && customState != StateFlag.State.DENY;
+        }
+
+        /** An unset inventory rule inherits the interaction policy. */
+        static StateFlag inventoryFallback(StateFlag.State inventoryState, StateFlag.State interactState) {
+            return inventoryState == null ? interactState : inventoryState;
+        }
 
         static void register() {
             FlagRegistry flags = WorldGuard.getInstance().getFlagRegistry();
