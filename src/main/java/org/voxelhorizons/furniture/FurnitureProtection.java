@@ -158,10 +158,10 @@ public final class FurnitureProtection implements Listener {
             com.sk89q.worldedit.util.Location location = worldEditLocation(at);
             com.sk89q.worldguard.LocalPlayer local = WorldGuardPlugin.inst().wrapPlayer(player);
             StateFlag.State state = regions.queryState(location, local, flag);
-            if (action == Action.INVENTORY && state == null && interact != null) {
-                // A Hub granting sitting/interactions can also open public storage
-                // until an explicit furniture-inventory flag changes that policy.
-                state = regions.queryState(location, local, interact);
+            if (action == Action.INVENTORY && interact != null) {
+                // A Hub granting interactions can also open public storage until
+                // an explicit furniture-inventory flag changes that policy.
+                state = inventoryFallback(state, regions.queryState(location, local, interact));
             }
             return state == StateFlag.State.ALLOW;
         }
@@ -172,6 +172,10 @@ public final class FurnitureProtection implements Listener {
             com.sk89q.worldedit.util.Location location = worldEditLocation(at);
             com.sk89q.worldguard.LocalPlayer local = WorldGuardPlugin.inst().wrapPlayer(player);
             RegionQuery regions = query();
+            // Vanilla WorldGuard checks bypass separately from region queries.
+            // Match that behavior for operators and explicitly exempt players.
+            if (WorldGuard.getInstance().getPlatform().getSessionManager().hasBypass(
+                    local, new BukkitWorld(at.getWorld()))) return true;
 
             if (action == Action.PLACE || action == Action.BREAK || action == Action.DYE) {
                 // WorldGuard's testBuild(location, player, customFlag) intentionally
