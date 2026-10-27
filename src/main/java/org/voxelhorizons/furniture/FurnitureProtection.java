@@ -109,7 +109,7 @@ public final class FurnitureProtection implements Listener {
         }
 
         /** An unset inventory rule inherits the interaction policy. */
-        static StateFlag inventoryFallback(StateFlag.State inventoryState, StateFlag.State interactState) {
+        static StateFlag.State inventoryFallback(StateFlag.State inventoryState, StateFlag.State interactState) {
             return inventoryState == null ? interactState : inventoryState;
         }
 
