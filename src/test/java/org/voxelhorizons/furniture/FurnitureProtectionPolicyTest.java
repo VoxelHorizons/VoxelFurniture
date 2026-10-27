@@ -19,28 +19,28 @@ import static org.junit.Assert.assertTrue;
 public class FurnitureProtectionPolicyTest {
     @Test
     public void customAllowDoesNotBypassVanillaBuildDeny() {
-        assertFalse(FurnitureProtection.structuralAllowed(false, StateFlag.State.ALLOW));
-        assertFalse(FurnitureProtection.structuralAllowed(false, StateFlag.State.DENY));
-        assertFalse(FurnitureProtection.structuralAllowed(false, null));
+        assertFalse(FurnitureProtection.WorldGuardHook.structuralAllowed(false, StateFlag.State.ALLOW));
+        assertFalse(FurnitureProtection.WorldGuardHook.structuralAllowed(false, StateFlag.State.DENY));
+        assertFalse(FurnitureProtection.WorldGuardHook.structuralAllowed(false, null));
     }
 
     @Test
     public void dedicatedDenyStillBlocksWhenBuildIsAllowed() {
-        assertFalse(FurnitureProtection.structuralAllowed(true, StateFlag.State.DENY));
+        assertFalse(FurnitureProtection.WorldGuardHook.structuralAllowed(true, StateFlag.State.DENY));
     }
 
     @Test
     public void buildPermittedAndCustomAllowOrUnsetPermitStructure() {
-        assertTrue(FurnitureProtection.structuralAllowed(true, StateFlag.State.ALLOW));
-        assertTrue(FurnitureProtection.structuralAllowed(true, null));
+        assertTrue(FurnitureProtection.WorldGuardHook.structuralAllowed(true, StateFlag.State.ALLOW));
+        assertTrue(FurnitureProtection.WorldGuardHook.structuralAllowed(true, null));
     }
 
     @Test
     public void inventoryRuleFallsBackToInteractionOnlyWhenUnset() {
-        assertSame(StateFlag.State.ALLOW, FurnitureProtection.inventoryFallback(null, StateFlag.State.ALLOW));
-        assertSame(StateFlag.State.DENY, FurnitureProtection.inventoryFallback(null, StateFlag.State.DENY));
-        assertSame(StateFlag.State.DENY, FurnitureProtection.inventoryFallback(StateFlag.State.DENY, StateFlag.State.ALLOW));
-        assertSame(StateFlag.State.ALLOW, FurnitureProtection.inventoryFallback(StateFlag.State.ALLOW, StateFlag.State.DENY));
-        assertNull(FurnitureProtection.inventoryFallback(null, null));
+        assertSame(StateFlag.State.ALLOW, FurnitureProtection.WorldGuardHook.inventoryFallback(null, StateFlag.State.ALLOW));
+        assertSame(StateFlag.State.DENY, FurnitureProtection.WorldGuardHook.inventoryFallback(null, StateFlag.State.DENY));
+        assertSame(StateFlag.State.DENY, FurnitureProtection.WorldGuardHook.inventoryFallback(StateFlag.State.DENY, StateFlag.State.ALLOW));
+        assertSame(StateFlag.State.ALLOW, FurnitureProtection.WorldGuardHook.inventoryFallback(StateFlag.State.ALLOW, StateFlag.State.DENY));
+        assertNull(FurnitureProtection.WorldGuardHook.inventoryFallback(null, null));
     }
 }
