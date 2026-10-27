@@ -193,6 +193,8 @@ public final class FurnitureManager {
         if (originIndex.containsKey(origin) || blockIndex.containsKey(origin)
                 || !canPlace(location.getWorld(), collisionBlocks)) return Optional.empty();
         if (player != null) {
+            if (!((VoxelFurniture) plugin).protection().allowsFootprint(player, location, collisionBlocks,
+                    FurnitureProtection.Action.PLACE)) return Optional.empty();
             FurniturePlaceEvent event = new FurniturePlaceEvent(player, definition, location);
             Bukkit.getPluginManager().callEvent(event);
             if (event.isCancelled()) return Optional.empty();
@@ -380,6 +382,9 @@ public final class FurnitureManager {
         if (instance == null) return false;
         FurnitureDefinition definition = definition(instance.definitionId()).orElse(null);
         if (definition == null || !definition.hasInventory()) return false;
+        // Protect public API calls too, not only player right-click event paths.
+        if (!((VoxelFurniture) plugin).protection().allows(player, instance.location(),
+                FurnitureProtection.Action.INVENTORY)) return false;
 
         Inventory inventory = openInventories.get(instance.id());
         if (inventory == null || inventory.getSize() != definition.inventorySize()) {
