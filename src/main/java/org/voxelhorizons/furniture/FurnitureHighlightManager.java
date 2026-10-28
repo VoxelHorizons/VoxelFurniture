@@ -96,18 +96,25 @@ public final class FurnitureHighlightManager {
             if (highlight == null || !highlight.hover()) continue;
 
             double range = Math.min(highlight.range(), definition.viewDistance());
-            double maxOffset = Math.abs(definition.hitboxOffsetX()) + Math.abs(definition.hitboxOffsetY())
+            // The display can be offset, scaled and spinning independently
+            // of its Interaction entity. Include both offsets in filtering.
+            double interactionOffset = Math.abs(definition.hitboxOffsetX()) + Math.abs(definition.hitboxOffsetY())
                     + Math.abs(definition.hitboxOffsetZ());
-            double roughRange = range + maxOffset + 2.0D;
+            double renderOffset = Math.abs(definition.offsetX()) + Math.abs(definition.offsetY())
+                    + Math.abs(definition.offsetZ());
+            double modelSize = Math.max(definition.scaleY(),
+                    Math.max(definition.scaleX(), definition.scaleZ())) * 1.5D;
+            double roughRange = range + Math.max(interactionOffset, renderOffset) + modelSize
+                    + Math.max(definition.width(), definition.height());
             if (eye.distanceSquared(instance.location()) > roughRange * roughRange) continue;
 
             Entity interaction = EntitySupport.find(instance.entities().get(1));
             Entity main = EntitySupport.find(instance.entities().get(0));
             if (interaction == null || main == null || !interaction.isValid() || !main.isValid()) continue;
 
-            if (eye.distanceSquared(interaction.getLocation()) > (range + 2.0D) * (range + 2.0D)) continue;
-            double distance = intersectBox(eye.toVector(), direction, interaction.getLocation().toVector(),
-                    definition.width(), definition.height());
+            double distance = intersectFurniture(eye.toVector(), direction,
+                    interaction.getLocation().toVector(), definition.width(), definition.height(),
+                    main.getLocation().toVector(), definition.scaleX(), definition.scaleY(), definition.scaleZ());
             if (distance < 0.0D || distance > range || distance >= nearestDistance) continue;
             nearestDistance = distance;
             nearest = new Candidate(instance, highlight, distance);
@@ -115,6 +122,25 @@ public final class FurnitureHighlightManager {
         if (nearest == null) return null;
         if (nearest.highlight.lineOfSight() && blocked(eye, direction, nearest.distance)) return null;
         return nearest;
+    }
+
+    /**
+     * Aim against the visible model as well as its interaction hitbox.
+     * Render offset and scale move and enlarge the model independently of
+     * the interaction bounds. Display entities don't expose model geometry,
+     * so use a scale-based proxy. sqrt(2) covers horizontal rotation.
+     */
+    static double intersectFurniture(Vector eye, Vector direction,
+                                    Vector hitboxCenter, double hitboxWidth, double hitboxHeight,
+                                    Vector modelCenter, double scaleX, double scaleY, double scaleZ) {
+        double interactionDistance = intersectBox(eye, direction, hitboxCenter, hitboxWidth, hitboxHeight);
+        double rotatedWidth = Math.max(scaleX, scaleZ) * Math.sqrt(2.0D);
+        double visualWidth = Math.max(hitboxWidth, rotatedWidth);
+        double visualHeight = Math.max(hitboxHeight, scaleY * 1.5D);
+        double modelDistance = intersectBox(eye, direction, modelCenter, visualWidth, visualHeight);
+        if (interactionDistance < 0.0D) return modelDistance;
+        if (modelDistance < 0.0D) return interactionDistance;
+        return Math.min(interactionDistance, modelDistance);
     }
 
     /** Slab intersection against the real interaction entity's axis-aligned hitbox. */
