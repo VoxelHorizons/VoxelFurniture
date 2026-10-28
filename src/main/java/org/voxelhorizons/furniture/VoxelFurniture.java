@@ -14,6 +14,7 @@ import java.util.logging.Level;
 
 public final class VoxelFurniture extends JavaPlugin {
     private FurnitureManager furnitureManager;
+    private FurnitureHighlightManager highlightManager;
     private BedrockProjectionPublisher bedrockPublisher;
     private FurnitureProtection protection;
 
@@ -47,6 +48,10 @@ public final class VoxelFurniture extends JavaPlugin {
             getServer().getPluginManager().registerEvents(protection, this);
             furnitureManager.validateDefinitions();
             furnitureManager.synchronizeDefinitions();
+            highlightManager = new FurnitureHighlightManager(this, furnitureManager);
+            getServer().getScheduler().runTaskTimer(this, new Runnable() {
+                @Override public void run() { highlightManager.tick(); }
+            }, 2L, 1L);
             getServer().getPluginManager().registerEvents(new FurnitureListener(core, furnitureManager,
                     getConfig().getBoolean("protect-entities", true), protection), this);
             new FurniturePickListener(this, core, furnitureManager).register();
@@ -69,6 +74,7 @@ public final class VoxelFurniture extends JavaPlugin {
     @Override
     public void onDisable() {
         if (bedrockPublisher != null) bedrockPublisher.close();
+        if (highlightManager != null) highlightManager.close();
         if (furnitureManager != null) furnitureManager.shutdown();
     }
 
