@@ -95,11 +95,16 @@ public final class FurnitureHighlightManager {
             FurnitureHighlightDefinition highlight = definition.highlight();
             if (highlight == null || !highlight.hover()) continue;
 
+            double range = Math.min(highlight.range(), definition.viewDistance());
+            double maxOffset = Math.abs(definition.hitboxOffsetX()) + Math.abs(definition.hitboxOffsetY())
+                    + Math.abs(definition.hitboxOffsetZ());
+            double roughRange = range + maxOffset + 2.0D;
+            if (eye.distanceSquared(instance.location()) > roughRange * roughRange) continue;
+
             Entity interaction = EntitySupport.find(instance.entities().get(1));
             Entity main = EntitySupport.find(instance.entities().get(0));
             if (interaction == null || main == null || !interaction.isValid() || !main.isValid()) continue;
 
-            double range = Math.min(highlight.range(), definition.viewDistance());
             if (eye.distanceSquared(interaction.getLocation()) > (range + 2.0D) * (range + 2.0D)) continue;
             double distance = intersectBox(eye.toVector(), direction, interaction.getLocation().toVector(),
                     definition.width(), definition.height());
