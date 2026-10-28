@@ -26,7 +26,7 @@ import java.util.UUID;
 import java.util.function.Consumer;
 
 /**
- * Player-specific hover outlines using only the platform entity visibility API.
+ * Player-specific proximity and/or hover outlines using native entity visibility.
  *
  * The real display is hidden ONLY from the targeting player, and an identical,
  * glowing, hidden-by-default temporary display is shown in its place. This avoids
@@ -36,7 +36,7 @@ import java.util.function.Consumer;
 public final class FurnitureHighlightManager {
     private final Plugin plugin;
     private final FurnitureManager furniture;
-    private final Map<UUID, Active> active = new HashMap<UUID, Active>();
+    private final Map<UUID, Map<UUID, Active>> active = new HashMap<UUID, Map<UUID, Active>>();
     private boolean warned;
 
     public FurnitureHighlightManager(Plugin plugin, FurnitureManager furniture) {
@@ -48,43 +48,78 @@ public final class FurnitureHighlightManager {
     public void tick() {
         Set<UUID> online = new HashSet<UUID>();
         for (Player player : Bukkit.getOnlinePlayers()) {
-            online.add(player.getUniqueId());
+            UUID viewerId = player.getUniqueId();
+            online.add(viewerId);
             try {
-                Candidate target = findTarget(player);
-                Active previous = active.get(player.getUniqueId());
-                if (target == null) {
-                    if (previous != null) clear(player.getUniqueId(), player);
-                    continue;
-                }
-                if (previous != null && previous.matches(target)) {
-                    previous.follow();
-                    continue;
-                }
-                if (previous != null) clear(player.getUniqueId(), player);
-                Active next = create(player, target);
-                if (next != null) active.put(player.getUniqueId(), next);
+                updateViewer(player, findTargets(player));
             } catch (RuntimeException failure) {
-                clear(player.getUniqueId(), player);
+                clearViewer(viewerId, player);
                 if (!warned) {
                     warned = true;
-                    plugin.getLogger().warning("Unable to render native furniture hover outline: " + failure);
+                    plugin.getLogger().warning("Unable to render native furniture highlights: " + failure);
                 }
             }
         }
         for (UUID viewerId : new ArrayList<UUID>(active.keySet())) {
-            if (!online.contains(viewerId)) clear(viewerId, null);
+            if (!online.contains(viewerId)) clearViewer(viewerId, null);
         }
     }
 
     public void close() {
-        for (UUID id : new ArrayList<UUID>(active.keySet())) clear(id, Bukkit.getPlayer(id));
+        for (UUID viewerId : new ArrayList<UUID>(active.keySet())) {
+            clearViewer(viewerId, Bukkit.getPlayer(viewerId));
+        }
     }
 
-    private Candidate findTarget(Player player) {
+    private void updateViewer(Player player, Map<UUID, Candidate> desired) {
+        UUID viewerId = player.getUniqueId();
+        Map<UUID, Active> current = active.get(viewerId);
+        if (current == null) {
+            current = new HashMap<UUID, Active>();
+            active.put(viewerId, current);
+        }
+
+        // Keep existing overlays, so a player standing near furniture doesn't
+        // cause needless entity spawns and one-frame flickers every tick.
+        for (UUID furnitureId : new ArrayList<UUID>(current.keySet())) {
+            Active previous = current.get(furnitureId);
+            Candidate candidate = desired.remove(furnitureId);
+            if (candidate != null && previous.matches(candidate)) {
+                previous.follow();
+                continue;
+            }
+            current.remove(furnitureId);
+            dispose(previous, player);
+            if (candidate != null) {
+                Active next = create(player, candidate);
+                if (next != null) current.put(furnitureId, next);
+            }
+        }
+
+        for (Candidate candidate : desired.values()) {
+            Active next = create(player, candidate);
+            if (next != null) current.put(candidate.instance.id(), next);
+        }
+        if (current.isEmpty()) active.remove(viewerId);
+    }
+
+    /**
+     * Independent booleans:
+     * hover=false, LOS=false -> permanent entity glow (handled by renderer);
+     * hover=true,  LOS=false -> looked-at, even through blocks;
+     * hover=false, LOS=true  -> any nearby furniture with an unobstructed view;
+     * hover=true,  LOS=true  -> looked-at and unobstructed.
+     */
+    static boolean requiresViewerCheck(FurnitureHighlightDefinition highlight) {
+        return highlight != null && (highlight.hover() || highlight.lineOfSight());
+    }
+
+    private Map<UUID, Candidate> findTargets(Player player) {
         Location eye = player.getEyeLocation();
         Vector direction = eye.getDirection().normalize();
-        Candidate nearest = null;
-        double nearestDistance = Double.POSITIVE_INFINITY;
+        Map<UUID, Candidate> targets = new HashMap<UUID, Candidate>();
+        Candidate nearestHover = null;
+        double nearestHoverDistance = Double.POSITIVE_INFINITY;
 
         for (FurnitureInstance instance : furniture.instances()) {
             if (instance.renderer() != FurnitureRendererType.DISPLAY
@@ -93,11 +128,11 @@ public final class FurnitureHighlightManager {
             FurnitureDefinition definition = furniture.definition(instance.definitionId()).orElse(null);
             if (definition == null) continue;
             FurnitureHighlightDefinition highlight = definition.highlight();
-            if (highlight == null || !highlight.hover()) continue;
+            if (!requiresViewerCheck(highlight)) continue;
 
             double range = Math.min(highlight.range(), definition.viewDistance());
-            // The display can be offset, scaled and spinning independently
-            // of its Interaction entity. Include both offsets in filtering.
+            // Broad-phase: consider both independently animated display and
+            // interaction offsets before resolving live entities.
             double interactionOffset = Math.abs(definition.hitboxOffsetX()) + Math.abs(definition.hitboxOffsetY())
                     + Math.abs(definition.hitboxOffsetZ());
             double renderOffset = Math.abs(definition.offsetX()) + Math.abs(definition.offsetY())
@@ -108,20 +143,58 @@ public final class FurnitureHighlightManager {
                     + Math.max(definition.width(), definition.height());
             if (eye.distanceSquared(instance.location()) > roughRange * roughRange) continue;
 
-            Entity interaction = EntitySupport.find(instance.entities().get(1));
             Entity main = EntitySupport.find(instance.entities().get(0));
-            if (interaction == null || main == null || !interaction.isValid() || !main.isValid()) continue;
+            if (main == null || !main.isValid()) continue;
 
+            if (!highlight.hover()) {
+                // Proximity+LOS is evaluated separately for *every* furniture
+                // item, not just the single item in the player's crosshair.
+                if (visibleFrom(eye, main.getLocation().toVector(), definition, range)) {
+                    targets.put(instance.id(), new Candidate(instance, highlight, 0.0D));
+                }
+                continue;
+            }
+
+            Entity interaction = EntitySupport.find(instance.entities().get(1));
+            if (interaction == null || !interaction.isValid()) continue;
             double distance = intersectFurniture(eye.toVector(), direction,
                     interaction.getLocation().toVector(), definition.width(), definition.height(),
                     main.getLocation().toVector(), definition.scaleX(), definition.scaleY(), definition.scaleZ());
-            if (distance < 0.0D || distance > range || distance >= nearestDistance) continue;
-            nearestDistance = distance;
-            nearest = new Candidate(instance, highlight, distance);
+            if (distance < 0.0D || distance > range || distance >= nearestHoverDistance) continue;
+            // Resolve occlusion per furniture before picking the closest one.
+            if (highlight.lineOfSight() && blocked(eye, direction, distance)) continue;
+            nearestHoverDistance = distance;
+            nearestHover = new Candidate(instance, highlight, distance);
         }
-        if (nearest == null) return null;
-        if (nearest.highlight.lineOfSight() && blocked(eye, direction, nearest.distance)) return null;
-        return nearest;
+        if (nearestHover != null) targets.put(nearestHover.instance.id(), nearestHover);
+        return targets;
+    }
+
+    /**
+     * Check actual sight lines to a few points of the visible model, without
+     * requiring the player to aim at any particular point or look its way.
+     * A model partially visible around an edge can still highlight.
+     */
+    private static boolean visibleFrom(Location eye, Vector model, FurnitureDefinition definition, double range) {
+        double horizontal = Math.max(definition.scaleX(), definition.scaleZ()) * 0.35D;
+        double vertical = definition.scaleY() * 0.4D;
+        Vector[] samplePoints = {
+                model,
+                model.clone().add(new Vector(0, vertical, 0)),
+                model.clone().add(new Vector(0, -vertical, 0)),
+                model.clone().add(new Vector(horizontal, 0, 0)),
+                model.clone().add(new Vector(-horizontal, 0, 0)),
+                model.clone().add(new Vector(0, 0, horizontal)),
+                model.clone().add(new Vector(0, 0, -horizontal))
+        };
+        for (Vector point : samplePoints) {
+            Vector ray = point.clone().subtract(eye.toVector());
+            double distance = ray.length();
+            if (distance < 1.0E-6D) return true;
+            if (distance > range) continue;
+            if (!blocked(eye, ray.multiply(1.0D / distance), distance)) return true;
+        }
+        return false;
     }
 
     /**
@@ -276,9 +349,13 @@ public final class FurnitureHighlightManager {
         Player.class.getMethod("hideEntity", Plugin.class, Entity.class).invoke(player, plugin, entity);
     }
 
-    private void clear(UUID playerId, Player viewer) {
-        Active previous = active.remove(playerId);
-        if (previous == null) return;
+    private void clearViewer(UUID viewerId, Player viewer) {
+        Map<UUID, Active> current = active.remove(viewerId);
+        if (current == null) return;
+        for (Active entry : current.values()) dispose(entry, viewer);
+    }
+
+    private void dispose(Active previous, Player viewer) {
         if (viewer != null && viewer.isOnline()) {
             for (Entity original : previous.source) {
                 if (original.isValid()) {
