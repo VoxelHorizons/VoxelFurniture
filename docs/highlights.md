@@ -68,5 +68,24 @@ eliminated using the vanilla glow effect.
 
 The Java display renderer is supported on modern versions (1.19.4+).
 Older armor-stand furniture continues to work without this display effect.
-Bedrock rendering may need separate Geyser support for equivalent visuals.
-The native overlay switch may occasionally produce a one-frame model swap.
+
+## Bedrock / Geyser safety
+
+VoxelCore's Geyser furniture projection maps the original display entity UUID
+to the Bedrock model. The viewer-specific glowing replica is **not** a registered
+projection model. Hiding the original display from a Bedrock viewer therefore
+made the model vanish inside the activation range, even while separate text
+parts stayed visible.
+
+VoxelFurniture now uses VoxelCore's existing `BedrockPlayers.isBedrock(UUID)`
+integration (optional Floodgate/Geyser APIs; no new plugin dependency) to
+**skip conditional display swaps for Bedrock viewers**. In any of the
+viewer-specific HOVER/LOS/proximity modes, Bedrock players see the normal
+furniture model without conditional glow, while Java players retain native
+glowing. When both flags are false, permanent glowing still uses the original
+display entity.
+
+A proper Bedrock-specific per-viewer highlight would require corresponding
+client-side support in the Geyser extension; we must not fake it by hiding
+or replacing the projected furniture. The native Java overlay switch may
+occasionally produce a one-frame model swap.
