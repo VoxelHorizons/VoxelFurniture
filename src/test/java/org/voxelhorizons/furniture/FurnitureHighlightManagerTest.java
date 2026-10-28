@@ -61,4 +61,27 @@ public class FurnitureHighlightManagerTest {
                 new Vector(0, 1.5D, 4), 1.5D, 1.5D, 1.5D), 0.0D);
     }
 
+
+    @Test
+    public void conditionFlagsControlWhetherPerViewerSelectionIsNeeded() {
+        // ALWAYS stays on real display and needs no per-player overlay.
+        org.voxelhorizons.furniture.model.FurnitureHighlightDefinition always =
+                new org.voxelhorizons.furniture.model.FurnitureHighlightDefinition(
+                        false, 0xFFFFFF, 16.0D, false, false);
+        org.voxelhorizons.furniture.model.FurnitureHighlightDefinition hover =
+                new org.voxelhorizons.furniture.model.FurnitureHighlightDefinition(
+                        true, 0xFFFFFF, 16.0D, false, false);
+        org.voxelhorizons.furniture.model.FurnitureHighlightDefinition proximity =
+                new org.voxelhorizons.furniture.model.FurnitureHighlightDefinition(
+                        false, 0xFFFFFF, 16.0D, true, false);
+        org.voxelhorizons.furniture.model.FurnitureHighlightDefinition both =
+                new org.voxelhorizons.furniture.model.FurnitureHighlightDefinition(
+                        true, 0xFFFFFF, 16.0D, true, false);
+
+        org.junit.Assert.assertFalse(FurnitureHighlightManager.requiresViewerCheck(always));
+        assertTrue(FurnitureHighlightManager.requiresViewerCheck(hover));
+        assertTrue(FurnitureHighlightManager.requiresViewerCheck(proximity));
+        assertTrue(FurnitureHighlightManager.requiresViewerCheck(both));
+        org.junit.Assert.assertFalse(FurnitureHighlightManager.requiresViewerCheck(null));
+    }
 }
