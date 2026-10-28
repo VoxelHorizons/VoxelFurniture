@@ -13,12 +13,16 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.Set;
 import java.util.UUID;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
 
 public class FurnitureManagerTest {
     @Test public void inventoryNamePlaceholderStripsItemColorButPreservesTitleFormatting() {
@@ -114,4 +118,33 @@ public class FurnitureManagerTest {
                 new FurnitureBlockDefinition(-1, 0, 0, Material.BARRIER)
         ), new Location(null, 0.5D, 64.0D, 0.5D), 45.0F);
     }
+    @Test public void ignoresAlreadyRemovedFurnitureWhenRepeatedBreakEventArrives() {
+        Map<UUID, FurnitureInstance> registry = new HashMap<UUID, FurnitureInstance>();
+        FurnitureInstance old = new FurnitureInstance(UUID.randomUUID(),
+                ContentID.parse("voxel:bamboo_cupboard_bench", "voxel"),
+                new Location(null, 0.5D, 64.0D, 0.5D), 0.0F,
+                FurnitureRendererType.ARMOR_STAND, Collections.<UUID>emptyList(),
+                Collections.<FurnitureBlockPosition>emptyList());
+        registry.put(old.id(), old);
+        assertSame(old, FurnitureManager.currentForBreak(registry, old));
+        registry.remove(old.id());
+        assertNull(FurnitureManager.currentForBreak(registry, old));
+    }
+
+    @Test public void staleSnapshotResolvesToNewestLiveFurnitureState() {
+        Map<UUID, FurnitureInstance> registry = new HashMap<UUID, FurnitureInstance>();
+        UUID id = UUID.randomUUID();
+        Location at = new Location(null, 3.5D, 70.0D, 2.5D);
+        ContentID key = ContentID.parse("voxel:bamboo_cupboard_bench", "voxel");
+        FurnitureInstance stale = new FurnitureInstance(id, key, at, 0.0F,
+                FurnitureRendererType.ARMOR_STAND, Collections.<UUID>emptyList(),
+                Collections.<FurnitureBlockPosition>emptyList());
+        FurnitureInstance updated = new FurnitureInstance(id, key, at, 90.0F,
+                FurnitureRendererType.ARMOR_STAND, Collections.<UUID>emptyList(),
+                Collections.<FurnitureBlockPosition>emptyList());
+        registry.put(id, updated);
+        assertSame(updated, FurnitureManager.currentForBreak(registry, stale));
+        assertNull(FurnitureManager.currentForBreak(registry, null));
+    }
+
 }
