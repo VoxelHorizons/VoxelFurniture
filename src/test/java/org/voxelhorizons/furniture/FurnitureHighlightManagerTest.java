@@ -84,4 +84,12 @@ public class FurnitureHighlightManagerTest {
         assertTrue(FurnitureHighlightManager.requiresViewerCheck(both));
         org.junit.Assert.assertFalse(FurnitureHighlightManager.requiresViewerCheck(null));
     }
+    @Test
+    public void bedrockViewersNeverReplaceTheirProjectedFurnitureModels() {
+        // Geyser projections use the original Java display UUID. The copy
+        // created for Java-only highlighting is not in that projection.
+        org.junit.Assert.assertFalse(FurnitureHighlightManager.canUseViewerOverlay(true));
+        assertTrue(FurnitureHighlightManager.canUseViewerOverlay(false));
+    }
+
 }
