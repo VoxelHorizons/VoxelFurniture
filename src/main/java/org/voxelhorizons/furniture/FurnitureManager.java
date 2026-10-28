@@ -26,6 +26,7 @@ import org.voxelhorizons.furniture.model.FurnitureDefinition;
 import org.voxelhorizons.furniture.model.FurnitureValues;
 import org.voxelhorizons.furniture.model.FurnitureDisplayPartDefinition;
 import org.voxelhorizons.furniture.model.FurnitureIdleAnimationDefinition;
+import org.voxelhorizons.furniture.model.FurnitureHighlightDefinition;
 import org.voxelhorizons.furniture.model.FurnitureBlockDefinition;
 import org.voxelhorizons.furniture.model.FurnitureBlockPosition;
 import org.voxelhorizons.furniture.model.FurnitureDefinitionParser;
@@ -789,6 +790,12 @@ public final class FurnitureManager {
                 .append(definition.offsetZ()).append('|').append(definition.offsetRotation()).append('|')
                 .append(modelItem.serialize().toString());
 
+        FurnitureHighlightDefinition highlight = definition.highlight();
+        if (highlight != null) {
+            value.append("|highlight:").append(highlight.hover()).append(',')
+                    .append(highlight.rgb()).append(',').append(highlight.range()).append(',')
+                    .append(highlight.lineOfSight()).append(',').append(highlight.includeParts());
+        }
         FurnitureIdleAnimationDefinition idle = definition.idleAnimation();
         if (idle != null) {
             value.append("|idle:").append(idle.bobAmplitude()).append(',')
