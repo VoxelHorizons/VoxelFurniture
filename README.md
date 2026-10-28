@@ -219,7 +219,7 @@ renderer; the legacy armor-stand renderer does not provide equivalent non-unifor
 
 ### Native furniture highlighting
 
-Set `properties.furniture.highlight` to enable built-in ALWAYS or per-viewer HOVER glowing outlines, without packet plugins. See [highlight configuration and limitations](docs/highlights.md).
+Set `properties.furniture.highlight` to enable native ALWAYS, HOVER, proximity-with-line-of-sight, or combined HOVER + line-of-sight glowing outlines. The `hover` and `line_of_sight` booleans operate independently, without packet plugins. See [highlight configuration and limitations](docs/highlights.md).
 
 ### Multipart display furniture and idle animation
 
