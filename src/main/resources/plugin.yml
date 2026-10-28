@@ -3,7 +3,7 @@ version: ${project.version}
 main: org.voxelhorizons.furniture.VoxelFurniture
 api-version: '1.13'
 depend: [VoxelCore]
-softdepend: [PlaceholderAPI, WorldGuard, Lands, Geyser-Spigot, floodgate]
+softdepend: [PlaceholderAPI, WorldGuard, Lands, Geyser-Spigot]
 
 commands:
   voxelfurniture:
