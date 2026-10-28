@@ -7,6 +7,7 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.util.Vector;
+import org.voxelhorizons.pack.BedrockPlayers;
 import org.voxelhorizons.furniture.model.FurnitureDefinition;
 import org.voxelhorizons.furniture.model.FurnitureHighlightDefinition;
 import org.voxelhorizons.furniture.model.FurnitureInstance;
@@ -38,10 +39,16 @@ public final class FurnitureHighlightManager {
     private final FurnitureManager furniture;
     private final Map<UUID, Map<UUID, Active>> active = new HashMap<UUID, Map<UUID, Active>>();
     private boolean warned;
+    private boolean bedrockFallbackNoted;
 
     public FurnitureHighlightManager(Plugin plugin, FurnitureManager furniture) {
         this.plugin = plugin;
         this.furniture = furniture;
+    }
+
+    /** Native per-viewer display swaps are not safe for Geyser-projected Bedrock models. */
+    static boolean canUseViewerOverlay(boolean bedrock) {
+        return !bedrock;
     }
 
     /** Run on the server thread once per tick, after furniture movement. */
@@ -50,6 +57,21 @@ public final class FurnitureHighlightManager {
         for (Player player : Bukkit.getOnlinePlayers()) {
             UUID viewerId = player.getUniqueId();
             online.add(viewerId);
+            // The Geyser projection is keyed to the original display UUID.
+            // Viewer-specific replacement entities are not part of that
+            // projection: hiding the original would make the Bedrock furniture
+            // disappear, while its TextDisplay part remains visible.
+            // Leave Bedrock's authoritative model untouched until the Geyser
+            // extension implements its own per-viewer highlight projection.
+            if (!canUseViewerOverlay(BedrockPlayers.isBedrock(viewerId))) {
+                clearViewer(viewerId, player); // Unhide if detection changed.
+                if (!bedrockFallbackNoted) {
+                    bedrockFallbackNoted = true;
+                    plugin.getLogger().info("Bedrock viewers retain original furniture models; "
+                            + "conditional glow overlays are Java-only until Geyser projection supports them.");
+                }
+                continue;
+            }
             try {
                 updateViewer(player, findTargets(player));
             } catch (RuntimeException failure) {
