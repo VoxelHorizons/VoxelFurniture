@@ -7,6 +7,7 @@ import org.bukkit.entity.EntityType;
 import org.bukkit.inventory.ItemStack;
 import org.voxelhorizons.furniture.model.FurnitureDefinition;
 import org.voxelhorizons.furniture.model.FurnitureDisplayPartDefinition;
+import org.voxelhorizons.furniture.model.FurnitureHighlightDefinition;
 import org.voxelhorizons.furniture.model.FurnitureRendererType;
 import org.voxelhorizons.pack.UiSpacingGlyphs;
 
@@ -53,6 +54,7 @@ public final class DisplayFurnitureRenderer implements FurnitureRenderer {
             applyDisplayTransform(display);
             applyScale(display, definition.scaleX(), definition.scaleY(), definition.scaleZ());
             applyViewDistance(display, definition.viewDistance());
+            applyPermanentGlow(display, definition.highlight());
             invokeOptional(display, "setTeleportDuration", Integer.TYPE, Integer.valueOf(1));
 
             Location hitboxLocation = FurnitureRenderTransform.applyLocalOffset(
@@ -95,6 +97,9 @@ public final class DisplayFurnitureRenderer implements FurnitureRenderer {
                 applyBillboard(extra, part.billboard());
                 applyScale(extra, part.scale(), part.scale(), part.scale());
                 applyViewDistance(extra, definition.viewDistance());
+                if (definition.highlight() != null && definition.highlight().includeParts()) {
+                    applyPermanentGlow(extra, definition.highlight());
+                }
                 invokeOptional(extra, "setTeleportDuration", Integer.TYPE, Integer.valueOf(1));
                 extra.addScoreboardTag("voxelfurniture");
                 extra.addScoreboardTag("voxelfurniture-part-" + part.id());
@@ -104,6 +109,15 @@ public final class DisplayFurnitureRenderer implements FurnitureRenderer {
             EntitySupport.remove(entities);
             throw new IllegalStateException("Unable to initialize display furniture", exception);
         }
+    }
+
+    private static void applyPermanentGlow(Entity entity, FurnitureHighlightDefinition highlight)
+            throws ReflectiveOperationException {
+        if (highlight == null || highlight.hover() || highlight.lineOfSight()) return;
+        entity.setGlowing(true);
+        Class<?> colorType = Class.forName("org.bukkit.Color");
+        Object color = colorType.getMethod("fromRGB", Integer.TYPE).invoke(null, highlight.rgb());
+        entity.getClass().getMethod("setGlowColorOverride", colorType).invoke(entity, color);
     }
 
     private String resolveDisplayText(String input) {

@@ -16,8 +16,10 @@ import java.util.Set;
 
 public final class FurnitureDefinitionParser {
     private static final Set<String> KEYS = new HashSet<String>(Arrays.asList(
-            "renderer", "model_item", "drop", "hitbox", "scale", "view_distance", "rotation_step", "placement", "seat", "offset", "blocks", "blockstates", "animation", "idle_animation", "display_parts", "interaction", "inventory", "value", "worth"
+            "renderer", "model_item", "drop", "hitbox", "scale", "view_distance", "rotation_step", "placement", "seat", "offset", "blocks", "blockstates", "animation", "idle_animation", "display_parts", "highlight", "interaction", "inventory", "value", "worth"
     ));
+    private static final Set<String> HIGHLIGHT_KEYS = new HashSet<String>(Arrays.asList(
+            "enabled", "hover", "color", "range", "line_of_sight", "include_parts"));
     private static final Set<String> HITBOX_KEYS = new HashSet<String>(Arrays.asList("width", "height", "offset"));
     private static final Set<String> HITBOX_OFFSET_KEYS = new HashSet<String>(Arrays.asList("x", "y", "z"));
     private static final Set<String> SCALE_KEYS = new HashSet<String>(Arrays.asList("x", "y", "z"));
@@ -56,6 +58,21 @@ public final class FurnitureDefinitionParser {
         FurnitureValues.parse(map);
 
         FurnitureRendererType renderer = FurnitureRendererType.parse(map.get("renderer"), defaultRenderer);
+        FurnitureHighlightDefinition highlight = null;
+        if (map.containsKey("highlight")) {
+            Map<?, ?> options = nested(item, map.get("highlight"), "highlight");
+            rejectUnknown(item, options, HIGHLIGHT_KEYS, "highlight");
+            if (bool(item, options.get("enabled"), true, "highlight.enabled")) {
+                boolean hover = bool(item, options.get("hover"), true, "highlight.hover");
+                double range = positive(item, options.get("range"), 6.0F, "highlight.range");
+                boolean lineOfSight = bool(item, options.get("line_of_sight"), true, "highlight.line_of_sight");
+                boolean includeParts = bool(item, options.get("include_parts"), false, "highlight.include_parts");
+                String color = options.get("color") == null ? "#FFD700" : String.valueOf(options.get("color"));
+                if (!color.matches("#[a-fA-F0-9]{6}")) throw invalid(item, "highlight.color must be #RRGGBB");
+                highlight = new FurnitureHighlightDefinition(hover, Integer.parseInt(color.substring(1), 16),
+                        range, lineOfSight, includeParts);
+            }
+        }
         ContentID modelItem = contentId(item, map.get("model_item"), item.id(), "model_item");
         ContentID drop = contentId(item, map.get("drop"), item.id(), "drop");
         float[] scale = scale(item, map.get("scale"));
@@ -265,7 +282,7 @@ public final class FurnitureDefinitionParser {
                 hitboxOffsetX, hitboxOffsetY, hitboxOffsetZ,
                 scale[0], scale[1], scale[2], viewDistance, rotationStep, placement, seat,
                 x, y, z, offsetRotation, blocks, states, animationUseModel, animationCloseDelay,
-                animationSyncNeighbors, idleAnimation, displayParts, interactionCommands, inventorySize, inventoryTitle));
+                animationSyncNeighbors, idleAnimation, displayParts, interactionCommands, inventorySize, inventoryTitle, highlight));
     }
 
     static float[] scale(ItemDefinition item, Object raw) {
@@ -375,6 +392,12 @@ public final class FurnitureDefinitionParser {
         if (raw == null) return fallback;
         if (!(raw instanceof String)) throw invalid(item, field + " must be a content id string");
         return ContentID.parse((String) raw, item.id().namespace());
+    }
+
+    private static boolean bool(ItemDefinition item, Object raw, boolean fallback, String field) {
+        if (raw == null) return fallback;
+        if (!(raw instanceof Boolean)) throw invalid(item, field + " must be a boolean");
+        return (Boolean) raw;
     }
 
     private static float positive(ItemDefinition item, Object raw, float fallback, String field) {
