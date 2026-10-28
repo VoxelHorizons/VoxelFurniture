@@ -113,7 +113,7 @@ public final class DisplayFurnitureRenderer implements FurnitureRenderer {
 
     private static void applyPermanentGlow(Entity entity, FurnitureHighlightDefinition highlight)
             throws ReflectiveOperationException {
-        if (highlight == null || highlight.hover()) return;
+        if (highlight == null || highlight.hover() || highlight.lineOfSight()) return;
         entity.setGlowing(true);
         Class<?> colorType = Class.forName("org.bukkit.Color");
         Object color = colorType.getMethod("fromRGB", Integer.TYPE).invoke(null, highlight.rgb());
