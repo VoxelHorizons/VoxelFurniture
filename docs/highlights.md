@@ -22,8 +22,10 @@ properties:
 - `enabled` defaults to `true` when a highlight section is present; omit the
   section or set `enabled: false` to disable the effect.
 - `hover: true` (default) outlines the model only for the player whose
-  crosshair points inside its **Interaction hitbox**. Change hitbox width,
-  height or offset if targeting feels inaccurate.
+  crosshair points inside its **visible display proxy or Interaction hitbox**.
+  The visual target uses the model's current entity position and scales up
+  with the model; furniture render offsets and bob/spin animation do not
+  require manual hitbox changes.
 - `hover: false` permanently glows for everybody via the normal Bukkit
   entity effect. Vanilla glow can be seen **through walls** in this mode.
 - `color` is an RGB `#RRGGBB` value (default `#FFD700`).
