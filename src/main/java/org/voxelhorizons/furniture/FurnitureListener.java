@@ -259,7 +259,10 @@ public final class FurnitureListener implements Listener {
                 + " sneaking=" + player.isSneaking()
                 + " inventory=" + (definition != null && definition.hasInventory())
                 + " collisionBlocks=" + instance.blocks().size()
+                + " hitbox=" + (definition == null ? "unknown"
+                        : definition.width() + "x" + definition.height())
                 + " renderer=" + instance.renderer()
+                + " visualModel=" + instance.renderedModel()
                 + " " + event);
     }
 
