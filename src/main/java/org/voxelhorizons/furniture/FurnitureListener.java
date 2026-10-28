@@ -42,8 +42,11 @@ public final class FurnitureListener implements Listener {
     private final FurnitureManager furniture;
     private final boolean protectEntities;
     private final FurnitureProtection protection;
+    private final VoxelFurniture plugin;
 
-    public FurnitureListener(VoxelCore core, FurnitureManager furniture, boolean protectEntities, FurnitureProtection protection) {
+    public FurnitureListener(VoxelFurniture plugin, VoxelCore core, FurnitureManager furniture,
+                             boolean protectEntities, FurnitureProtection protection) {
+        this.plugin = plugin;
         this.core = core;
         this.furniture = furniture;
         this.protectEntities = protectEntities;
@@ -99,6 +102,11 @@ public final class FurnitureListener implements Listener {
         if (event.useItemInHand() == org.bukkit.event.Event.Result.ALLOW) return;
         Optional<FurnitureInstance> instance = furniture.byBlock(event.getClickedBlock());
         if (!instance.isPresent()) return;
+        traceInteraction(event.getPlayer(), instance.get(),
+                "collision-click action=" + event.getAction() + " block=" + event.getClickedBlock().getType()
+                + " hand=" + event.getHand() + " cancelled=" + event.isCancelled()
+                + " useBlock=" + event.useInteractedBlock()
+                + " useItem=" + event.useItemInHand());
         FurnitureDefinition resolved = furniture.definition(instance.get().definitionId()).orElse(null);
         FurnitureProtection.Action action = event.getAction() == org.bukkit.event.block.Action.LEFT_CLICK_BLOCK
                 ? FurnitureProtection.Action.BREAK
@@ -141,6 +149,8 @@ public final class FurnitureListener implements Listener {
         Optional<FurnitureInstance> instance = furniture.byBlock(event.getBlock());
         if (!instance.isPresent()) return;
         boolean cancelled = event.isCancelled();
+        traceInteraction(event.getPlayer(), instance.get(),
+                "carrier-block-break block=" + event.getBlock().getType() + " cancelled=" + cancelled);
         event.setCancelled(true);
         if (cancelled && !protection.explicitWorldGuardAllow(event.getPlayer(),
                 instance.get().location(), FurnitureProtection.Action.BREAK)) return;
@@ -203,6 +213,9 @@ public final class FurnitureListener implements Listener {
         EntityDamageByEntityEvent byEntity = (EntityDamageByEntityEvent) event;
         if (!(byEntity.getDamager() instanceof Player)) return;
         Player player = (Player) byEntity.getDamager();
+        traceInteraction(player, instance.get(),
+                "entity-damage type=" + event.getEntityType() + " cause=" + event.getCause()
+                + " cancelled=" + cancelledBefore);
         if (cancelledBefore && !protection.explicitWorldGuardAllow(player,
                 instance.get().location(), FurnitureProtection.Action.BREAK)) return;
         if (player.hasPermission("voxelfurniture.break") &&
@@ -214,6 +227,9 @@ public final class FurnitureListener implements Listener {
     public void onInteract(PlayerInteractEntityEvent event) {
         Optional<FurnitureInstance> instance = furniture.byEntity(event.getRightClicked().getUniqueId());
         if (!instance.isPresent()) return;
+        traceInteraction(event.getPlayer(), instance.get(),
+                "entity-right-click type=" + event.getRightClicked().getType()
+                + " hand=" + event.getHand() + " cancelled=" + event.isCancelled());
         FurnitureDefinition resolved = furniture.definition(instance.get().definitionId()).orElse(null);
         ItemStack held = event.getPlayer().getInventory().getItemInMainHand();
         FurnitureProtection.Action action = isDyeAction(event.getPlayer(), held)
@@ -229,6 +245,22 @@ public final class FurnitureListener implements Listener {
         }
         event.setCancelled(true);
         interact(event.getPlayer(), instance.get());
+    }
+
+    /** Optional, read-only comparison of the exact event routing for two furniture models. */
+    private void traceInteraction(Player player, FurnitureInstance instance, String event) {
+        if (!plugin.getConfig().getBoolean("debug.interaction-trace.enabled", false)) return;
+        String filter = plugin.getConfig().getString("debug.interaction-trace.definition", "").trim();
+        if (!filter.isEmpty() && !instance.definitionId().toString().equalsIgnoreCase(filter)) return;
+        FurnitureDefinition definition = furniture.definition(instance.definitionId()).orElse(null);
+        plugin.getLogger().info("[FurnitureInteractionTrace] player=" + player.getName()
+                + " definition=" + instance.definitionId()
+                + " instance=" + instance.id()
+                + " sneaking=" + player.isSneaking()
+                + " inventory=" + (definition != null && definition.hasInventory())
+                + " collisionBlocks=" + instance.blocks().size()
+                + " renderer=" + instance.renderer()
+                + " " + event);
     }
 
     private void interact(Player player, FurnitureInstance instance) {
