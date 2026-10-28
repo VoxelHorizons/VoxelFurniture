@@ -12,6 +12,16 @@ protect-entities: true
 # Paper remains authoritative; this feed contains only visual state and Paper
 # entity UUIDs for a Geyser extension, never inventory contents/permissions.
 bedrock:
+  interaction:
+    # Mitigation for Bedrock right-clicks unexpectedly reaching break/damage
+    # handlers on storage furniture. Java and non-storage furniture unchanged.
+    # Bedrock players must sneak + attack to deliberately pick up storage pieces.
+    # Requires Floodgate installed to identify Bedrock clients.
+    storage-pickup-requires-sneak: true
+    # Optional temporary diagnostics for issue #48: log Bedrock interaction,
+    # block-break and entity-damage events, without changing server authority.
+    # Disable after collecting the reproduction; can be noisy.
+    trace-events: false
   projection:
     enabled: true
     # Empty auto-detects a loaded local Geyser-Spigot plugin's data directory.
