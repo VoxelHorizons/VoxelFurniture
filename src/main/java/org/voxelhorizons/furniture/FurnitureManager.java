@@ -230,10 +230,19 @@ public final class FurnitureManager {
         }
     }
 
-    public boolean breakFurniture(Player player, FurnitureInstance instance) {
+    public boolean breakFurniture(Player player, FurnitureInstance requested) {
+        // Multiple block and entity event paths can arrive for one physical
+        // click. Never drop from a stale snapshot or an already removed ID.
+        if (requested == null || player == null) return false;
+        FurnitureInstance instance = instances.get(requested.id());
+        if (instance == null) return false;
         FurnitureBreakEvent event = new FurnitureBreakEvent(player, instance);
         Bukkit.getPluginManager().callEvent(event);
         if (event.isCancelled()) return false;
+        // Other event listeners can remove or replace this furniture while
+        // processing the break event. Re-check authoritative state before drops.
+        instance = instances.get(requested.id());
+        if (instance == null) return false;
         FurnitureDefinition definition = definition(instance.definitionId()).orElse(null);
         instance = sealInventory(instance);
         removeSeat(instance.id());
