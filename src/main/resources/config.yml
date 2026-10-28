@@ -35,3 +35,13 @@ bedrock:
 protection:
   worldguard: true
   lands: true
+
+# Read-only troubleshooting of affected vs unaffected furniture definitions.
+# Turn on briefly to identify whether Bedrock right-clicks are dispatched as
+# block/entity right-clicks, block breaks or entity damage. No behavior changes.
+debug:
+  interaction-trace:
+    enabled: false
+    # Optional exact VoxelCore item ID, e.g. voxel:bamboo_cupboard_bench.
+    # Leave blank to log all VoxelFurniture interactions.
+    definition: ''
