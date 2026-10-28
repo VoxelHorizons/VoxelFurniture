@@ -194,7 +194,7 @@ public final class FurnitureHighlightManager {
         Consumer<Entity> initialize = entity -> {
             try {
                 entity.getClass().getMethod("setVisibleByDefault", Boolean.TYPE).invoke(entity, false);
-                entity.setPersistent(false); // Never save a temporary overlay to the world.
+                entity.getClass().getMethod("setPersistent", Boolean.TYPE).invoke(entity, false); // Never save overlays.
                 entity.setGravity(false);
                 entity.setInvulnerable(true);
             } catch (ReflectiveOperationException exception) {
