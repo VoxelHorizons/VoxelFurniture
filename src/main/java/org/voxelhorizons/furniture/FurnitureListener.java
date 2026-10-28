@@ -42,15 +42,12 @@ public final class FurnitureListener implements Listener {
     private final FurnitureManager furniture;
     private final boolean protectEntities;
     private final FurnitureProtection protection;
-    private final BedrockFurnitureSafety bedrockSafety;
 
-    public FurnitureListener(VoxelFurniture plugin, VoxelCore core, FurnitureManager furniture,
-                             boolean protectEntities, FurnitureProtection protection) {
+    public FurnitureListener(VoxelCore core, FurnitureManager furniture, boolean protectEntities, FurnitureProtection protection) {
         this.core = core;
         this.furniture = furniture;
         this.protectEntities = protectEntities;
         this.protection = protection;
-        this.bedrockSafety = new BedrockFurnitureSafety(plugin, furniture);
     }
 
     @EventHandler
@@ -102,8 +99,6 @@ public final class FurnitureListener implements Listener {
         if (event.useItemInHand() == org.bukkit.event.Event.Result.ALLOW) return;
         Optional<FurnitureInstance> instance = furniture.byBlock(event.getClickedBlock());
         if (!instance.isPresent()) return;
-        bedrockSafety.trace(event.getPlayer(), instance.get(), "block-use " + event.getAction()
-                + " cancelled=" + event.isCancelled() + " hand=" + event.getHand());
         FurnitureDefinition resolved = furniture.definition(instance.get().definitionId()).orElse(null);
         FurnitureProtection.Action action = event.getAction() == org.bukkit.event.block.Action.LEFT_CLICK_BLOCK
                 ? FurnitureProtection.Action.BREAK
@@ -115,9 +110,8 @@ public final class FurnitureListener implements Listener {
                 instance.get().location(), action)) return;
         if (event.getAction() == org.bukkit.event.block.Action.LEFT_CLICK_BLOCK) {
             event.setCancelled(true);
-            if (event.getPlayer().hasPermission("voxelfurniture.break")
-                    && !bedrockSafety.blockPickup(event.getPlayer(), instance.get(), "left-click collision")
-                    && protection.allows(event.getPlayer(), instance.get().location(), FurnitureProtection.Action.BREAK)) {
+            if (event.getPlayer().hasPermission("voxelfurniture.break") &&
+                    protection.allows(event.getPlayer(), instance.get().location(), FurnitureProtection.Action.BREAK)) {
                 furniture.breakFurniture(event.getPlayer(), instance.get());
             }
         } else if (event.getAction() == org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK) {
@@ -147,13 +141,11 @@ public final class FurnitureListener implements Listener {
         Optional<FurnitureInstance> instance = furniture.byBlock(event.getBlock());
         if (!instance.isPresent()) return;
         boolean cancelled = event.isCancelled();
-        bedrockSafety.trace(event.getPlayer(), instance.get(), "block-break cancelled=" + cancelled);
         event.setCancelled(true);
         if (cancelled && !protection.explicitWorldGuardAllow(event.getPlayer(),
                 instance.get().location(), FurnitureProtection.Action.BREAK)) return;
-        if (event.getPlayer().hasPermission("voxelfurniture.break")
-                && !bedrockSafety.blockPickup(event.getPlayer(), instance.get(), "block-break")
-                && protection.allows(event.getPlayer(), instance.get().location(), FurnitureProtection.Action.BREAK)) {
+        if (event.getPlayer().hasPermission("voxelfurniture.break") &&
+                protection.allows(event.getPlayer(), instance.get().location(), FurnitureProtection.Action.BREAK)) {
             furniture.breakFurniture(event.getPlayer(), instance.get());
         }
     }
@@ -211,8 +203,6 @@ public final class FurnitureListener implements Listener {
         EntityDamageByEntityEvent byEntity = (EntityDamageByEntityEvent) event;
         if (!(byEntity.getDamager() instanceof Player)) return;
         Player player = (Player) byEntity.getDamager();
-        bedrockSafety.trace(player, instance.get(), "entity-damage cancelled=" + cancelledBefore);
-        if (bedrockSafety.blockPickup(player, instance.get(), "entity-damage")) return;
         if (cancelledBefore && !protection.explicitWorldGuardAllow(player,
                 instance.get().location(), FurnitureProtection.Action.BREAK)) return;
         if (player.hasPermission("voxelfurniture.break") &&
@@ -224,8 +214,6 @@ public final class FurnitureListener implements Listener {
     public void onInteract(PlayerInteractEntityEvent event) {
         Optional<FurnitureInstance> instance = furniture.byEntity(event.getRightClicked().getUniqueId());
         if (!instance.isPresent()) return;
-        bedrockSafety.trace(event.getPlayer(), instance.get(), "entity-use cancelled=" + event.isCancelled()
-                + " hand=" + event.getHand());
         FurnitureDefinition resolved = furniture.definition(instance.get().definitionId()).orElse(null);
         ItemStack held = event.getPlayer().getInventory().getItemInMainHand();
         FurnitureProtection.Action action = isDyeAction(event.getPlayer(), held)
