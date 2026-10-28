@@ -28,6 +28,48 @@ a model/definition, hitbox/collision or event routing difference, but does
    event from dropping the same furniture more than once. This changes no
    successful one-time pickup path for either edition.
 
+## Definition comparison: owner-provided benches(5).yml (120 entries)
+
+The provided content resolves via `extends`; there is no obvious malformed
+furniture property in the affected entry. These four examples isolate two
+possible differences without changing the normal controls:
+
+| Furniture ID | Inherited base | Material | Hitbox | 27-slot inventory | Open animation |
+| --- | --- | --- | --- | --- | --- |
+| `bamboo_cupboard_bench` (**affected**) | `oak_cupboard_bench` | `BAMBOO_PLANKS` | **1.0 × 1.0** | Yes | Yes |
+| `cherry_drawer_bench` (**working**) | `oak_drawer_bench` | `CHERRY_PLANKS` | **0.5 × 0.5** | Yes | Yes |
+| `cherry_cupboard_bench` | `oak_cupboard_bench` | `CHERRY_PLANKS` | **1.0 × 1.0** | Yes | Yes |
+| `bamboo_drawer_bench` | `oak_drawer_bench` | `BAMBOO_PLANKS` | **0.5 × 0.5** | Yes | Yes |
+
+All four inherit `renderer: auto`, `scale: 2.0`, `rotation_step: 90`,
+one collision block at 0/0/0, and opening-model references. The
+`DisplayFurnitureRenderer` uses these hitbox values directly to set the
+server-side `INTERACTION` entity's width/height. The effective base
+collision block material comes from the parser, not the top-level item
+`material`; these are separate concepts.
+
+**Do not change the cupboard hitbox solely because it is larger.** The
+model geometry and click events must establish whether the size contributes
+to this incident. We have not tested the other cupboard variants.
+
+### Minimal four-model live test
+
+Use an admin account to obtain these items, then **switch to a non-OP
+Bedrock Survival account** to place and right-click each in a test region:
+
+```text
+/vf give voxel:bamboo_cupboard_bench
+/vf give voxel:cherry_drawer_bench
+/vf give voxel:cherry_cupboard_bench
+/vf give voxel:bamboo_drawer_bench
+```
+
+Use the same ordinary right-click/tap on each (do not sneak). Record
+**works / unexpectedly drops / leaves ghost** for each. This distinguishes
+a large-hitbox/cupboard issue from a bamboo-specific or individual-model
+issue. Capture a few `[FurnitureInteractionTrace]` lines only if the
+failing difference remains reproducible.
+
 ## Enable a short trace for one furniture definition
 
 In `plugins/VoxelFurniture/config.yml`:
