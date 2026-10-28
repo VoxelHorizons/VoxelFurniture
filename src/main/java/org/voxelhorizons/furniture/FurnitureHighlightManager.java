@@ -220,9 +220,11 @@ public final class FurnitureHighlightManager {
             Class<?> transformType = Class.forName("org.bukkit.entity.ItemDisplay$ItemDisplayTransform");
             Object transform = original.getClass().getMethod("getItemDisplayTransform").invoke(original);
             copy.getClass().getMethod("setItemDisplayTransform", transformType).invoke(copy, transform);
-            Class<?> matrixType = Class.forName("org.joml.Matrix4f");
-            Object matrix = original.getClass().getMethod("getTransformationMatrix").invoke(original);
-            copy.getClass().getMethod("setTransformationMatrix", matrixType).invoke(copy, matrix);
+            // Display exposes getTransformation(), not getTransformationMatrix().
+            // Preserve the original model's scale, rotation and translation.
+            Class<?> transformationType = Class.forName("org.bukkit.util.Transformation");
+            Object transformation = original.getClass().getMethod("getTransformation").invoke(original);
+            copy.getClass().getMethod("setTransformation", transformationType).invoke(copy, transformation);
             Class<?> billboardType = Class.forName("org.bukkit.entity.Display$Billboard");
             Object billboard = original.getClass().getMethod("getBillboard").invoke(original);
             copy.getClass().getMethod("setBillboard", billboardType).invoke(copy, billboard);
