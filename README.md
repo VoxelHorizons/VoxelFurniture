@@ -217,6 +217,10 @@ Missing axes in the mapping default to `1.0`, so `scale: { y: 2.0 }` only stretc
 All scale values must be finite and greater than zero. Axis-specific scaling applies to the modern ItemDisplay
 renderer; the legacy armor-stand renderer does not provide equivalent non-uniform entity scaling.
 
+### Native furniture highlighting
+
+Set `properties.furniture.highlight` to enable built-in ALWAYS or per-viewer HOVER glowing outlines, without packet plugins. See [highlight configuration and limitations](docs/highlights.md).
+
 ### Multipart display furniture and idle animation
 
 Modern display furniture can attach additional item or text display parts to the main rendered model. Text parts support
