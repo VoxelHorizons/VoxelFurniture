@@ -42,7 +42,7 @@ jobs:
           VERSION="${RELEASE_TAG#v}"
           POM_VERSION=$(git show "$COMMIT:pom.xml" | python3 -c 'import sys,xml.etree.ElementTree as ET; r=ET.fromstring(sys.stdin.read()); print(r.find("{http://maven.apache.org/POM/4.0.0}version").text)')
           [[ "$POM_VERSION" == "$VERSION" ]] || { echo "Version mismatch: tag $VERSION, POM $POM_VERSION"; exit 1; }
-          git show "$COMMIT:pom.xml" | python3 -c 'import sys,xml.etree.ElementTree as ET; r=ET.fromstring(sys.stdin.read()); ns="{http://maven.apache.org/POM/4.0.0}"; p=r.find(ns+"properties"); names=('voxelcore.version',); bad=[k for k in names if p is None or p.find(ns+k) is None or "SNAPSHOT" in (p.find(ns+k).text or "")]; sys.exit("Stable dependency versions required: "+", ".join(bad)) if bad else None'
+          git show "$COMMIT:pom.xml" | python3 -c 'import sys,xml.etree.ElementTree as ET; r=ET.fromstring(sys.stdin.read()); ns="{http://maven.apache.org/POM/4.0.0}"; p=r.find(ns+"properties"); names=("voxelcore.version",); bad=[k for k in names if p is None or p.find(ns+k) is None or "SNAPSHOT" in (p.find(ns+k).text or "")]; sys.exit("Stable dependency versions required: "+", ".join(bad)) if bad else None'
           echo "commit=$COMMIT" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
