@@ -23,3 +23,7 @@ The universal Furniture JAR is named `VoxelFurniture-1.0.0-mc1.12-26.3.jar`. Fol
 ## Support and security
 
 Report reproducible bugs through [GitHub Issues](https://github.com/VoxelHorizons/VoxelFurniture/issues). For confidential vulnerabilities, see [SECURITY.md](SECURITY.md). See the [v1.0.0 release](https://github.com/VoxelHorizons/VoxelFurniture/releases/tag/v1.0.0) for downloads and checksums.
+
+## License
+
+VoxelFurniture is **free to use and source-available**, not OSI-approved open-source software. You may run and privately customise it on your own servers, including monetised servers. Unauthorised redistribution, mirrors, reuploads, repackaging and resale are prohibited, subject to applicable GitHub/authorised-platform rights. See the [Voxel Horizons Community Use License 1.0](LICENSE.md).
