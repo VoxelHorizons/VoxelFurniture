@@ -1,0 +1,164 @@
+name: Discord - Published Plugin Releases
+run-name: Discord ${{ github.repository }} release ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published release tag for a one-time catch-up announcement
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  announce:
+    if: github.event_name == 'release' || github.actor == 'Fibbicles'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Notify Discord about the published release
+        env:
+          DISCORD_RELEASE_WEBHOOK_URL: ${{ secrets.DISCORD_RELEASE_WEBHOOK_URL }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+
+          repo = os.environ['GH_REPO']
+          profiles = {
+              'VoxelHorizons/VoxelFurniture': {
+                  'name': 'VoxelFurniture', 'color': 0x29A8D8,
+              },
+              'VoxelHorizons/VoxelVehicles': {
+                  'name': 'VoxelVehicles', 'color': 0xF0AB49,
+              },
+          }
+          if repo not in profiles:
+              raise SystemExit('Unexpected repository; notification blocked')
+
+          raw_url = os.environ.get('DISCORD_RELEASE_WEBHOOK_URL', '').strip().rstrip('/')
+          if not raw_url:
+              raise SystemExit('Missing Actions secret DISCORD_RELEASE_WEBHOOK_URL')
+          url = raw_url.removesuffix('/github')
+          parsed = urllib.parse.urlsplit(url)
+          if (parsed.scheme != 'https'
+                  or parsed.hostname not in ('discord.com', 'discordapp.com')
+                  or not re.fullmatch(r'/api/webhooks/\d+/[A-Za-z0-9._-]+', parsed.path)
+                  or parsed.query or parsed.fragment):
+              raise SystemExit('Invalid Discord webhook URL in secret')
+
+          event_name = os.environ['EVENT_NAME']
+          if event_name == 'release':
+              with open(os.environ['GITHUB_EVENT_PATH'], encoding='utf-8') as file:
+                  event = json.load(file)
+              if event.get('action') != 'published':
+                  raise SystemExit('Not a publication event')
+              release = event.get('release') or {}
+              if (event.get('repository') or {}).get('full_name') != repo:
+                  raise SystemExit('Event repository mismatch')
+          elif event_name == 'workflow_dispatch':
+              if os.environ.get('GITHUB_ACTOR') != 'Fibbicles':
+                  raise SystemExit('Only the repository owner can manually announce')
+              tag = os.environ.get('INPUT_TAG', '').strip()
+              if not re.fullmatch(r'v\d+\.\d+\.\d+(?:-rc\.\d+)?', tag):
+                  raise SystemExit('Invalid release tag')
+              api_url = ('https://api.github.com/repos/' + repo
+                         + '/releases/tags/' + urllib.parse.quote(tag, safe=''))
+              request = urllib.request.Request(api_url, headers={
+                  'Authorization': 'Bearer ' + os.environ['GH_TOKEN'],
+                  'Accept': 'application/vnd.github+json',
+                  'X-GitHub-Api-Version': '2022-11-28',
+                  'User-Agent': 'VoxelHorizons-Release-Notifier',
+              })
+              try:
+                  with urllib.request.urlopen(request, timeout=20) as response:
+                      release = json.load(response)
+              except urllib.error.HTTPError as exc:
+                  raise SystemExit(f'GitHub could not resolve published tag (HTTP {exc.code})') from None
+          else:
+              raise SystemExit('Unsupported trigger')
+
+          if release.get('draft') or not release.get('published_at'):
+              raise SystemExit('Release is not published; refusing to announce')
+          tag = (release.get('tag_name') or '').strip()
+          if not re.fullmatch(r'v\d+\.\d+\.\d+(?:-rc\.\d+)?', tag):
+              raise SystemExit('Invalid published release tag')
+          release_url = (release.get('html_url') or '').strip()
+          if not release_url.startswith('https://github.com/' + repo + '/releases/tag/'):
+              raise SystemExit('Unexpected release URL')
+
+          profile = profiles[repo]
+          private = repo.endswith('/VoxelVehicles')
+          if private:
+              # Never include private repository links, notes, assets, or URLs in Discord.
+              description = (
+                  f'{profile["name"]} {tag} has been published privately. '
+                  'Distribution remains restricted to authorised customers or collaborators. '
+                  'The private GitHub release is not a public download.'
+              )
+              fields = [
+                  {'name': 'Version', 'value': tag, 'inline': True},
+                  {'name': 'Availability', 'value': 'Private / authorised access', 'inline': True},
+              ]
+          else:
+              description = (
+                  f'{profile["name"]} {tag} is available on GitHub. '
+                  'Download the plugin JAR and SHA256SUMS from the release page.'
+              )
+              notes = (release.get('body') or '').strip()
+              if notes:
+                  description += '\n\n' + notes[:2900]
+              fields = [
+                  {'name': 'Version', 'value': tag, 'inline': True},
+                  {'name': 'Release type',
+                   'value': 'Pre-release' if release.get('prerelease') else 'Stable',
+                   'inline': True},
+              ]
+
+          embed = {
+              'title': f'{profile["name"]} {tag}',
+              'description': description[:3900],
+              'color': profile['color'],
+              'fields': fields,
+              'footer': {'text': f'VoxelHorizons • {profile["name"]}'},
+          }
+          if not private:
+              embed['url'] = release_url
+          message = {
+              'username': f'{profile["name"]} Updates',
+              'allowed_mentions': {'parse': []},
+              'embeds': [embed],
+          }
+          request = urllib.request.Request(
+              url,
+              data=json.dumps(message, ensure_ascii=False).encode('utf-8'),
+              headers={
+                  'Content-Type': 'application/json',
+                  'User-Agent': 'VoxelHorizons-Release-Notifier',
+              },
+              method='POST',
+          )
+          try:
+              with urllib.request.urlopen(request, timeout=20) as response:
+                  if response.status not in (200, 204):
+                      raise SystemExit(f'Discord returned HTTP {response.status}')
+          except urllib.error.HTTPError as exc:
+              # Do not log exception URL: it contains a secret webhook token.
+              raise SystemExit(f'Discord rejected announcement (HTTP {exc.code})') from None
+          except urllib.error.URLError:
+              raise SystemExit('Could not connect to the Discord webhook') from None
+          print(f'Discord announcement delivered for {profile["name"]} {tag}')
+          PY
