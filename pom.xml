@@ -34,7 +34,7 @@
 
     <dependencies>
         <!-- Bedrock projection uses VoxelCore's provided Gson; do not shade duplicate gameplay APIs. -->
-        <dependency><groupId>com.google.code.gson</groupId><artifactId>gson</artifactId><version>2.11.0</version><scope>provided</scope></dependency>
+        <dependency><groupId>com.google.code.gson</groupId><artifactId>gson</artifactId><version>2.15.0</version><scope>provided</scope></dependency>
         <dependency>
             <groupId>org.voxelhorizons</groupId>
             <artifactId>voxelcore-common</artifactId>
