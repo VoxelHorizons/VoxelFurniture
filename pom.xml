@@ -20,7 +20,7 @@
         <junit.version>4.13.2</junit.version>
     </properties>
 
-    <repositories>
+    <repositories><repository><id>github</id><url>https://maven.pkg.github.com/VoxelHorizons/VoxelCore</url></repository>
         <repository>
             <id>spigot-repo</id>
             <url>https://hub.spigotmc.org/nexus/content/groups/public/</url>

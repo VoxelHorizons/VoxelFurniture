@@ -57,19 +57,16 @@ jobs:
         with:
           ref: ${{ needs.validate.outputs.commit }}
           persist-credentials: false
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          repository: VoxelHorizons/VoxelCore
-          ref: 0da63813d9273fa340f566eea924d248a3f57e31 # VoxelCore v1.0.0 release commit
-          path: VoxelCore
-          persist-credentials: false
       - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
         with:
           distribution: temurin
           java-version: '25'
           cache: maven
+          server-id: github
       - name: Build and test tagged source
-        run: mvn -B --no-transfer-progress -f VoxelCore/pom.xml install -DskipTests && mvn -B --no-transfer-progress clean verify
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: mvn -B --no-transfer-progress clean verify
       - name: Stage versioned plugin JAR and checksums
         env:
           RELEASE_VERSION: ${{ needs.validate.outputs.version }}
