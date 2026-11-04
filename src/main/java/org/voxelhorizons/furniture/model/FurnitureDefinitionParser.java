@@ -25,7 +25,7 @@ public final class FurnitureDefinitionParser {
     private static final Set<String> SCALE_KEYS = new HashSet<String>(Arrays.asList("x", "y", "z"));
     private static final Set<String> OFFSET_KEYS = new HashSet<String>(Arrays.asList("x", "y", "z", "rotation"));
     private static final Set<String> SEAT_KEYS = new HashSet<String>(Arrays.asList("x", "y", "z", "yaw"));
-    private static final Set<String> ANIMATION_KEYS = new HashSet<String>(Arrays.asList("use", "full", "toggle", "close_delay", "sync_neighbors"));
+    private static final Set<String> ANIMATION_KEYS = new HashSet<String>(Arrays.asList("use", "full", "toggle", "active", "use_active", "close_delay", "sync_neighbors"));
     private static final Set<String> INVENTORY_KEYS = new HashSet<String>(Arrays.asList("size", "title", "type"));
     private static final Set<String> IDLE_KEYS = new HashSet<String>(Arrays.asList("bob", "spin"));
     private static final Set<String> BOB_KEYS = new HashSet<String>(Arrays.asList("amplitude", "period_ticks"));
@@ -119,14 +119,17 @@ public final class FurnitureDefinitionParser {
         ContentID animationUseModel = null;
         ContentID animationFullModel = null;
         ContentID animationToggleModel = null;
+        ContentID animationActiveModel = null;
+        ContentID animationUseActiveModel = null;
         int animationCloseDelay = 10;
         boolean animationSyncNeighbors = false;
         if (map.containsKey("animation")) {
             Map<?, ?> animation = nested(item, map.get("animation"), "animation");
             rejectUnknown(item, animation, ANIMATION_KEYS, "animation");
             if (animation.isEmpty() || (!animation.containsKey("use")
-                    && !animation.containsKey("full") && !animation.containsKey("toggle"))) {
-                throw invalid(item, "animation requires use, full or toggle");
+                    && !animation.containsKey("full") && !animation.containsKey("toggle")
+                    && !animation.containsKey("active"))) {
+                throw invalid(item, "animation requires use, full, toggle or active");
             }
             if (animation.containsKey("use")) {
                 animationUseModel = requiredContentId(item, animation.get("use"), "animation.use");
@@ -136,6 +139,15 @@ public final class FurnitureDefinitionParser {
             }
             if (animation.containsKey("toggle")) {
                 animationToggleModel = requiredContentId(item, animation.get("toggle"), "animation.toggle");
+            }
+            if (animation.containsKey("active")) {
+                animationActiveModel = requiredContentId(item, animation.get("active"), "animation.active");
+            }
+            if (animation.containsKey("use_active")) {
+                animationUseActiveModel = requiredContentId(item, animation.get("use_active"), "animation.use_active");
+                if (animationUseModel == null || animationActiveModel == null) {
+                    throw invalid(item, "animation.use_active requires both animation.use and animation.active");
+                }
             }
             if (animationUseModel != null && animationToggleModel != null) {
                 throw invalid(item, "animation.use and animation.toggle cannot both be configured");
@@ -315,7 +327,8 @@ public final class FurnitureDefinitionParser {
                 scale[0], scale[1], scale[2], viewDistance, rotationStep, placement, seat,
                 x, y, z, offsetRotation, blocks, states, animationUseModel, animationCloseDelay,
                 animationSyncNeighbors, idleAnimation, displayParts, interactionCommands, inventorySize, inventoryTitle,
-                highlight, animationFullModel, animationToggleModel, inventoryType));
+                highlight, animationFullModel, animationToggleModel, inventoryType,
+                animationActiveModel, animationUseActiveModel));
     }
 
     static float[] scale(ItemDefinition item, Object raw) {
