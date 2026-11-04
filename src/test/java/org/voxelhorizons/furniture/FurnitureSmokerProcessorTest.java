@@ -15,6 +15,29 @@ public class FurnitureSmokerProcessorTest {
         // exercised on the live server rather than in serverless unit tests.
     }
 
+    @Test public void burnerTurnsOffWhenItsLastFuelTickExpiresWithoutItemChanges() throws Exception {
+        FurnitureSmokerProcessor processor = new FurnitureSmokerProcessor();
+        java.lang.reflect.Field burn = FurnitureSmokerProcessor.class.getDeclaredField("burnTicks");
+        burn.setAccessible(true);
+        burn.setInt(processor, 2);
+
+        org.bukkit.inventory.Inventory empty = (org.bukkit.inventory.Inventory)
+                java.lang.reflect.Proxy.newProxyInstance(
+                        org.bukkit.inventory.Inventory.class.getClassLoader(),
+                        new Class<?>[] {org.bukkit.inventory.Inventory.class},
+                        (proxy, method, arguments) -> {
+                            if ("getSize".equals(method.getName())) return 3;
+                            if ("getItem".equals(method.getName())) return null;
+                            return null;
+                        });
+
+        assertTrue(processor.isBurning());
+        assertFalse(processor.tick(empty));
+        assertTrue(processor.isBurning());
+        assertFalse("Exhausting fuel need not change inventory contents", processor.tick(empty));
+        assertFalse(processor.isBurning());
+    }
+
     @Test public void smokerBurnsFuelAndRejectsNonFuel() {
         assertEquals(800, FurnitureSmokerProcessor.fuelTicks(new ItemStack(Material.COAL)));
         assertEquals(50, FurnitureSmokerProcessor.fuelTicks(new ItemStack(Material.STICK)));
