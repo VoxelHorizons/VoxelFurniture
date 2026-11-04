@@ -74,7 +74,9 @@ public final class FurnitureManager {
     private final Plugin plugin;
     private final FurnitureStore store;
     private final Map<UUID, FurnitureInstance> instances;
-    private final Map<UUID, ArmorStand> seats = new LinkedHashMap<UUID, ArmorStand>();
+    // Each furniture instance may have multiple separately occupied seat anchors.
+    private final Map<UUID, Map<Integer, ArmorStand>> seats =
+            new LinkedHashMap<UUID, Map<Integer, ArmorStand>>();
     private final Map<UUID, Inventory> openInventories = new LinkedHashMap<UUID, Inventory>();
     // Smoker inventories and cooking sessions persist after the UI closes.
     private final Set<UUID> smokerIds = new HashSet<UUID>();
@@ -626,17 +628,24 @@ public final class FurnitureManager {
     public boolean sit(Player player, FurnitureInstance instance) {
         if (player == null || instance == null || player.getVehicle() != null) return false;
         FurnitureDefinition definition = definition(instance.definitionId()).orElse(null);
-        if (definition == null || definition.seat() == null) return false;
+        if (definition == null || definition.seats().isEmpty()) return false;
 
-        ArmorStand existing = seats.get(instance.id());
-        if (existing != null) {
-            if (existing.isValid() && !existing.getPassengers().isEmpty()) return false;
-            existing.remove();
-            seats.remove(instance.id());
+        Map<Integer, ArmorStand> active = seats.get(instance.id());
+        if (active == null) active = new LinkedHashMap<Integer, ArmorStand>();
+
+        // Clicks can arrive from anywhere on a multi-block picnic table.
+        // Prefer the nearest unoccupied seat, not the first configured seat.
+        List<Location> positions = new ArrayList<Location>();
+        for (FurnitureSeatDefinition configured : definition.seats()) {
+            positions.add(seatLocation(instance, configured));
         }
+        int selected = nearestFreeSeat(positions, player.getLocation(), active);
+        if (selected < 0) return false;
 
-        FurnitureSeatDefinition seat = definition.seat();
-        Location location = seatLocation(instance, seat);
+        ArmorStand stale = active.remove(Integer.valueOf(selected));
+        if (stale != null && stale.isValid()) stale.remove();
+
+        Location location = positions.get(selected);
         ArmorStand stand = location.getWorld().spawn(location, ArmorStand.class);
         stand.setVisible(false);
         stand.setGravity(false);
@@ -649,9 +658,7 @@ public final class FurnitureManager {
         stand.setSilent(true);
         stand.addScoreboardTag("voxelfurniture-seat");
 
-        // Vehicles do not force a player's camera/body yaw to match the mount.
-        // Align the rider before mounting so seat.yaw can correct furniture
-        // models authored facing a different direction without dismounting them.
+        // Align the player's yaw before mounting, as with legacy single seats.
         Location playerLocation = player.getLocation();
         playerLocation.setYaw(location.getYaw());
         player.teleport(playerLocation);
@@ -661,8 +668,35 @@ public final class FurnitureManager {
             return false;
         }
 
-        seats.put(instance.id(), stand);
+        active.put(Integer.valueOf(selected), stand);
+        seats.put(instance.id(), active);
         return true;
+    }
+
+    /**
+     * Returns the closest available seat, or -1 if every valid seat is occupied.
+     * Kept separate for deterministic tests and to avoid the main-seat-only path.
+     */
+    static int nearestFreeSeat(List<Location> positions, Location player,
+                               Map<Integer, ArmorStand> active) {
+        if (positions == null || player == null) return -1;
+        int best = -1;
+        double bestDistance = Double.POSITIVE_INFINITY;
+        for (int i = 0; i < positions.size(); i++) {
+            ArmorStand stand = active.get(Integer.valueOf(i));
+            if (stand != null && stand.isValid() && !stand.getPassengers().isEmpty()) continue;
+            Location loc = positions.get(i);
+            if (loc.getWorld() != player.getWorld()) continue;
+            double dx = loc.getX() - player.getX();
+            double dy = loc.getY() - player.getY();
+            double dz = loc.getZ() - player.getZ();
+            double distance = dx * dx + dy * dy + dz * dz;
+            if (distance < bestDistance) {
+                best = i;
+                bestDistance = distance;
+            }
+        }
+        return best;
     }
 
     static Location seatLocation(FurnitureInstance instance, FurnitureSeatDefinition seat) {
@@ -678,22 +712,32 @@ public final class FurnitureManager {
     }
 
     private void cleanupSeats() {
-        for (Map.Entry<UUID, ArmorStand> entry : new ArrayList<Map.Entry<UUID, ArmorStand>>(seats.entrySet())) {
-            ArmorStand stand = entry.getValue();
+        for (Map.Entry<UUID, Map<Integer, ArmorStand>> entry
+                : new ArrayList<Map.Entry<UUID, Map<Integer, ArmorStand>>>(seats.entrySet())) {
             FurnitureInstance instance = instances.get(entry.getKey());
             FurnitureDefinition definition = instance == null ? null
                     : definition(instance.definitionId()).orElse(null);
-            if (stand == null || !stand.isValid() || stand.getPassengers().isEmpty()
-                    || definition == null || definition.seat() == null) {
-                if (stand != null && stand.isValid()) stand.remove();
-                seats.remove(entry.getKey());
+            int configured = definition == null ? 0 : definition.seats().size();
+
+            for (Map.Entry<Integer, ArmorStand> seat
+                    : new ArrayList<Map.Entry<Integer, ArmorStand>>(entry.getValue().entrySet())) {
+                ArmorStand stand = seat.getValue();
+                if (stand == null || !stand.isValid() || stand.getPassengers().isEmpty()
+                        || seat.getKey().intValue() >= configured) {
+                    if (stand != null && stand.isValid()) stand.remove();
+                    entry.getValue().remove(seat.getKey());
+                }
             }
+            if (entry.getValue().isEmpty()) seats.remove(entry.getKey());
         }
     }
 
     private void removeSeat(UUID instanceId) {
-        ArmorStand stand = seats.remove(instanceId);
-        if (stand != null && stand.isValid()) stand.remove();
+        Map<Integer, ArmorStand> active = seats.remove(instanceId);
+        if (active == null) return;
+        for (ArmorStand stand : active.values()) {
+            if (stand != null && stand.isValid()) stand.remove();
+        }
     }
 
     public void shutdown() {
@@ -706,10 +750,9 @@ public final class FurnitureManager {
             if (instance != null) instances.put(instance.id(), withInventoryContents(instance, entry.getValue().getContents()));
         }
         save();
-        for (ArmorStand stand : new ArrayList<ArmorStand>(seats.values())) {
-            if (stand != null && stand.isValid()) stand.remove();
+        for (UUID instanceId : new ArrayList<UUID>(seats.keySet())) {
+            removeSeat(instanceId);
         }
-        seats.clear();
     }
 
     private void synchronizeIfContentChanged() {
@@ -960,8 +1003,7 @@ public final class FurnitureManager {
                     .append(',').append(block.material().name());
         }
 
-        FurnitureSeatDefinition seat = definition.seat();
-        if (seat != null) {
+        for (FurnitureSeatDefinition seat : definition.seats()) {
             value.append("|seat:")
                     .append(seat.offsetX()).append(',').append(seat.offsetY()).append(',')
                     .append(seat.offsetZ()).append(',').append(seat.yawOffset());
@@ -1082,14 +1124,24 @@ public final class FurnitureManager {
     }
 
     private void refreshSeat(FurnitureInstance instance, FurnitureDefinition definition) {
-        ArmorStand stand = seats.get(instance.id());
-        if (definition.seat() == null) {
+        if (definition.seats().isEmpty()) {
             removeSeat(instance.id());
             return;
         }
-        if (stand != null && stand.isValid()) {
-            stand.teleport(seatLocation(instance, definition.seat()));
+        Map<Integer, ArmorStand> active = seats.get(instance.id());
+        if (active == null) return;
+        for (Map.Entry<Integer, ArmorStand> entry
+                : new ArrayList<Map.Entry<Integer, ArmorStand>>(active.entrySet())) {
+            ArmorStand stand = entry.getValue();
+            int slot = entry.getKey().intValue();
+            if (slot < 0 || slot >= definition.seats().size()) {
+                if (stand != null && stand.isValid()) stand.remove();
+                active.remove(entry.getKey());
+            } else if (stand != null && stand.isValid()) {
+                stand.teleport(seatLocation(instance, definition.seats().get(slot)));
+            }
         }
+        if (active.isEmpty()) seats.remove(instance.id());
     }
 
     private boolean canMigrateBlocks(FurnitureInstance instance, List<FurnitureBlockPosition> desired) {
