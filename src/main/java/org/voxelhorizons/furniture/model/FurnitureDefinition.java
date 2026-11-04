@@ -32,6 +32,8 @@ public final class FurnitureDefinition {
     private final ContentID animationUseModel;
     private final ContentID animationFullModel;
     private final ContentID animationToggleModel;
+    private final ContentID animationActiveModel;
+    private final ContentID animationUseActiveModel;
     private final int animationCloseDelay;
     private final boolean animationSyncNeighbors;
     private final FurnitureIdleAnimationDefinition idleAnimation;
@@ -243,6 +245,29 @@ public final class FurnitureDefinition {
                                List<FurnitureInteractionCommand> interactionCommands, int inventorySize,
                                String inventoryTitle, FurnitureHighlightDefinition highlight,
                                ContentID animationFullModel, ContentID animationToggleModel, String inventoryType) {
+        this(itemId, modelItemId, dropItemId, renderer, width, height,
+                hitboxOffsetX, hitboxOffsetY, hitboxOffsetZ, scaleX, scaleY, scaleZ,
+                viewDistance, rotationStep, placement, seat, offsetX, offsetY, offsetZ, offsetRotation,
+                blocks, states, animationUseModel, animationCloseDelay, animationSyncNeighbors,
+                idleAnimation, displayParts, interactionCommands, inventorySize, inventoryTitle, highlight,
+                animationFullModel, animationToggleModel, inventoryType, null, null);
+    }
+
+    public FurnitureDefinition(ContentID itemId, ContentID modelItemId, ContentID dropItemId,
+                               FurnitureRendererType renderer, float width, float height,
+                               double hitboxOffsetX, double hitboxOffsetY, double hitboxOffsetZ,
+                               float scaleX, float scaleY, float scaleZ,
+                               float viewDistance, float rotationStep, FurniturePlacement placement,
+                               FurnitureSeatDefinition seat,
+                               double offsetX, double offsetY, double offsetZ, float offsetRotation,
+                               List<FurnitureBlockDefinition> blocks, List<FurnitureStateRule> states,
+                               ContentID animationUseModel, int animationCloseDelay,
+                               boolean animationSyncNeighbors, FurnitureIdleAnimationDefinition idleAnimation,
+                               List<FurnitureDisplayPartDefinition> displayParts,
+                               List<FurnitureInteractionCommand> interactionCommands, int inventorySize,
+                               String inventoryTitle, FurnitureHighlightDefinition highlight,
+                               ContentID animationFullModel, ContentID animationToggleModel, String inventoryType,
+                               ContentID animationActiveModel, ContentID animationUseActiveModel) {
         this.itemId = itemId;
         this.modelItemId = modelItemId;
         this.dropItemId = dropItemId;
@@ -268,6 +293,8 @@ public final class FurnitureDefinition {
         this.animationUseModel = animationUseModel;
         this.animationFullModel = animationFullModel;
         this.animationToggleModel = animationToggleModel;
+        this.animationActiveModel = animationActiveModel;
+        this.animationUseActiveModel = animationUseActiveModel;
         this.animationCloseDelay = animationCloseDelay;
         this.animationSyncNeighbors = animationSyncNeighbors;
         this.idleAnimation = idleAnimation;
@@ -309,6 +336,8 @@ public final class FurnitureDefinition {
     public ContentID animationUseModel() { return animationUseModel; }
     public ContentID animationFullModel() { return animationFullModel; }
     public ContentID animationToggleModel() { return animationToggleModel; }
+    public ContentID animationActiveModel() { return animationActiveModel; }
+    public ContentID animationUseActiveModel() { return animationUseActiveModel; }
     public int animationCloseDelay() { return animationCloseDelay; }
     public boolean animationSyncNeighbors() { return animationSyncNeighbors; }
     public FurnitureIdleAnimationDefinition idleAnimation() { return idleAnimation; }
