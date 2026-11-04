@@ -19,6 +19,8 @@ import org.bukkit.event.block.BlockFromToEvent;
 import org.bukkit.event.block.BlockPistonExtendEvent;
 import org.bukkit.event.block.BlockPistonRetractEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.player.PlayerArmorStandManipulateEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
@@ -129,6 +131,7 @@ public final class FurnitureListener implements Listener {
         // crouches. Noninteractive furniture remains a vanilla building surface.
         if (!player.isSneaking() && (definition.hasInventory()
                 || definition.animationUseModel() != null
+                || definition.animationToggleModel() != null
                 || definition.hasInteractionCommands())) return false;
         if (held == null || held.getType() == Material.AIR || !held.getType().isBlock()) return false;
 
@@ -241,7 +244,8 @@ public final class FurnitureListener implements Listener {
             executeCommands(player, instance, definition);
             return;
         }
-        if (definition != null && !definition.hasInventory() && definition.animationUseModel() != null
+        if (definition != null && !definition.hasInventory()
+                && (definition.animationToggleModel() != null || definition.animationUseModel() != null)
                 && furniture.toggleUseAnimation(instance)) return;
         if (player.hasPermission("voxelfurniture.inventory") && furniture.openInventory(player, instance)) return;
         if (player.hasPermission("voxelfurniture.sit")) furniture.sit(player, instance);
@@ -295,6 +299,37 @@ public final class FurnitureListener implements Listener {
             else held.setAmount(held.getAmount() - 1);
         }
         return true;
+    }
+
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onSmokerClick(InventoryClickEvent event) {
+        org.bukkit.inventory.Inventory top = event.getView().getTopInventory();
+        if (!(top.getHolder() instanceof org.voxelhorizons.furniture.inventory.FurnitureInventoryHolder)
+                || top.getType() != org.bukkit.event.inventory.InventoryType.valueOf("SMOKER")) return;
+        // Custom inventories do not have a vanilla block entity enforcing the output slot.
+        // Players may take cooked results but must never insert their own items there.
+        if (event.getRawSlot() == 2 && event.getCursor() != null
+                && event.getCursor().getType() != Material.AIR) event.setCancelled(true);
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onSmokerDrag(InventoryDragEvent event) {
+        org.bukkit.inventory.Inventory top = event.getView().getTopInventory();
+        if (top.getHolder() instanceof org.voxelhorizons.furniture.inventory.FurnitureInventoryHolder
+                && "SMOKER".equals(top.getType().name()) && event.getRawSlots().contains(Integer.valueOf(2))) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onInventoryClick(InventoryClickEvent event) {
+        furniture.inventoryChanged(event.getView().getTopInventory());
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onInventoryDrag(InventoryDragEvent event) {
+        furniture.inventoryChanged(event.getView().getTopInventory());
     }
 
     @EventHandler
