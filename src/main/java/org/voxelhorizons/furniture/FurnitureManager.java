@@ -323,8 +323,9 @@ public final class FurnitureManager {
         if (!changed) return true;
         for (FurnitureInstance member : group) {
             FurnitureInstance updated = instances.get(member.id());
-            if (updated != null) refresh(updated);
+            if (updated != null) refresh(updated, false);
         }
+        // Persist the entire group once, rather than one disk write per neighbor.
         save();
         return true;
     }
@@ -452,7 +453,7 @@ public final class FurnitureManager {
                 if (instance == null) return;
                 FurnitureInstance updated = withInventoryContents(instance, inventory.getContents());
                 instances.put(instanceId, updated);
-                refresh(updated);
+                refresh(updated, false);
                 save();
             }
         });
@@ -489,7 +490,7 @@ public final class FurnitureManager {
             if (!processor.tick(inventory)) continue;
             FurnitureInstance updated = withInventoryContents(instance, inventory.getContents());
             instances.put(updated.id(), updated);
-            refresh(updated);
+            refresh(updated, false);
             save();
         }
     }
@@ -1255,6 +1256,11 @@ public final class FurnitureManager {
     }
 
     private void refresh(FurnitureInstance instance) {
+        refresh(instance, true);
+    }
+
+    /** Use persist=false when the caller is already saving a batch of state changes. */
+    private void refresh(FurnitureInstance instance, boolean persist) {
         FurnitureDefinition definition = definition(instance.definitionId()).orElse(null);
         if (definition == null) return;
         // Always resolve the current model, including inventory fullness and manual toggles.
@@ -1286,7 +1292,7 @@ public final class FurnitureManager {
                 // Existing entity UUIDs and their look-up indices remain unchanged.
                 instances.put(updated.id(), updated);
             }
-            save();
+            if (persist) save();
         } catch (RuntimeException exception) {
             Bukkit.getLogger().warning("Unable to update furniture state " + instance.id() + ": " + exception.getMessage());
         }
