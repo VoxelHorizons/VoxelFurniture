@@ -32,7 +32,9 @@ jobs:
           cache: maven
 
       - name: Install VoxelCore API
-        run: mvn -B --no-transfer-progress -f VoxelCore/pom.xml install -DskipTests
+        # Furniture requires the common and plugin modules, not unrelated
+        # adapters or the Geyser extension with their external dependencies.
+        run: mvn -B --no-transfer-progress -f VoxelCore/pom.xml -pl voxelcore-plugin -am install -DskipTests
 
       - name: Build and test VoxelFurniture
         run: mvn -B --no-transfer-progress clean verify

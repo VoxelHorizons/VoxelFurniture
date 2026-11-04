@@ -36,6 +36,78 @@ public class FurnitureDefinitionParserTest {
         assertFalse(org.voxelhorizons.furniture.model.FurnitureValues.parse(attributes).isPresent());
     }
 
+    @Test public void furnitureWorthAcceptsNamedCurrenciesWithoutAForcedDefault() {
+        Map<String, Object> prices = new LinkedHashMap<String, Object>();
+        prices.put("coins", 30);
+        prices.put("tokens", 5);
+        Map<String, Object> furniture = new LinkedHashMap<String, Object>();
+        furniture.put("worth", prices);
+        assertTrue(parseFurniture(furniture) != null);
+        assertFalse(org.voxelhorizons.furniture.model.FurnitureValues.parse(furniture).isPresent());
+    }
+
+    @Test public void furnitureWorthAcceptsArbitraryProviderCurrencyIdsAndDecimals() {
+        Map<String, Object> prices = new LinkedHashMap<String, Object>();
+        prices.put("gems", 2.5D);
+        prices.put("event_points", 0);
+        prices.put("credits", 300000);
+        Map<String, Object> furniture = new LinkedHashMap<String, Object>();
+        furniture.put("worth", prices);
+        assertTrue(parseFurniture(furniture) != null);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void furnitureWorthRejectsNonNumericMappedPrice() {
+        Map<String, Object> prices = new LinkedHashMap<String, Object>();
+        prices.put("coins", "thirty");
+        Map<String, Object> furniture = new LinkedHashMap<String, Object>();
+        furniture.put("worth", prices);
+        parseFurniture(furniture);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void furnitureWorthRejectsNegativeMappedPrice() {
+        Map<String, Object> prices = new LinkedHashMap<String, Object>();
+        prices.put("coins", -1);
+        Map<String, Object> furniture = new LinkedHashMap<String, Object>();
+        furniture.put("worth", prices);
+        parseFurniture(furniture);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void furnitureWorthRejectsNonFiniteMappedPrice() {
+        Map<String, Object> prices = new LinkedHashMap<String, Object>();
+        prices.put("coins", Double.NaN);
+        Map<String, Object> furniture = new LinkedHashMap<String, Object>();
+        furniture.put("worth", prices);
+        parseFurniture(furniture);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void furnitureWorthRejectsDuplicateCaseInsensitiveCurrencyIds() {
+        Map<String, Object> prices = new LinkedHashMap<String, Object>();
+        prices.put("Coins", 30);
+        prices.put("coins", 25);
+        Map<String, Object> furniture = new LinkedHashMap<String, Object>();
+        furniture.put("worth", prices);
+        parseFurniture(furniture);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void furnitureWorthRejectsEmptyCurrencyMap() {
+        Map<String, Object> furniture = new LinkedHashMap<String, Object>();
+        furniture.put("worth", Collections.emptyMap());
+        parseFurniture(furniture);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void furnitureWorthStillRejectsBothAliasesWithMap() {
+        Map<String, Object> furniture = new LinkedHashMap<String, Object>();
+        furniture.put("worth", Collections.singletonMap("coins", 30));
+        furniture.put("value", 30);
+        parseFurniture(furniture);
+    }
+
     @Test(expected = IllegalArgumentException.class)
     public void furnitureWorthRejectsNegativePrice() {
         Map<String, Object> furniture = new LinkedHashMap<String, Object>();
