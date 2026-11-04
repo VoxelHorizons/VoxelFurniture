@@ -44,6 +44,8 @@ public final class FurnitureListener implements Listener {
     private final FurnitureManager furniture;
     private final boolean protectEntities;
     private final FurnitureProtection protection;
+    private final FurnitureInteractionGuard clickGuard = new FurnitureInteractionGuard();
+    private boolean clickGuardResetScheduled;
 
     public FurnitureListener(VoxelCore core, FurnitureManager furniture, boolean protectEntities, FurnitureProtection protection) {
         this.core = core;
@@ -250,6 +252,18 @@ public final class FurnitureListener implements Listener {
     }
 
     private void interact(Player player, FurnitureInstance instance) {
+        // A single physical right-click can surface through both PlayerInteractEvent
+        // and PlayerInteractEntityEvent when a collision block overlaps the hitbox.
+        if (!clickGuard.accept(player.getUniqueId(), instance.id())) return;
+        if (!clickGuardResetScheduled) {
+            clickGuardResetScheduled = true;
+            core.getServer().getScheduler().runTask(core, new Runnable() {
+                @Override public void run() {
+                    clickGuard.reset();
+                    clickGuardResetScheduled = false;
+                }
+            });
+        }
         FurnitureInteractEvent interaction = new FurnitureInteractEvent(player, instance);
         org.bukkit.Bukkit.getPluginManager().callEvent(interaction);
         if (interaction.isCancelled()) return;
