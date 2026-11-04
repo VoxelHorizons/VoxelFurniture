@@ -18,6 +18,7 @@ public final class FurnitureSmokerProcessor {
     private int burnTicks;
     private int cookingTicks;
     private ItemStack previousInput;
+    private Recipe cachedRecipe;
 
     /** Call once per server tick. Returns true only when the inventory contents changed. */
     public boolean tick(Inventory inventory) {
@@ -28,19 +29,20 @@ public final class FurnitureSmokerProcessor {
         if (empty(input)) {
             cookingTicks = 0;
             previousInput = null;
-            return false;
-        }
-
-        Recipe recipe = smokingRecipe(input);
-        if (recipe == null || !canAccept(inventory.getItem(2), recipe.getResult())) {
-            cookingTicks = 0;
-            previousInput = null;
+            cachedRecipe = null;
             return false;
         }
 
         if (previousInput == null || !previousInput.isSimilar(input)) {
             previousInput = input.clone();
+            cachedRecipe = smokingRecipe(input);
             cookingTicks = 0;
+        }
+
+        Recipe recipe = cachedRecipe;
+        if (recipe == null || !canAccept(inventory.getItem(2), recipe.getResult())) {
+            cookingTicks = 0;
+            return false;
         }
 
         boolean changed = false;
@@ -113,9 +115,12 @@ public final class FurnitureSmokerProcessor {
     }
 
     private static Recipe smokingRecipe(ItemStack input) {
-        for (Recipe candidate : Bukkit.getRecipesFor(input)) {
-            if (!isSmokingRecipe(candidate)) continue;
-            if (matches(candidate, input)) return candidate;
+        // Bukkit.getRecipesFor(input) looks for recipes producing input, NOT
+        // recipes that can cook it. Iterate the registered recipes instead.
+        java.util.Iterator<Recipe> recipes = Bukkit.recipeIterator();
+        while (recipes.hasNext()) {
+            Recipe candidate = recipes.next();
+            if (isSmokingRecipe(candidate) && matches(candidate, input)) return candidate;
         }
         return null;
     }
