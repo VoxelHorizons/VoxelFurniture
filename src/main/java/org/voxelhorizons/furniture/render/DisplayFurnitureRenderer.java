@@ -14,6 +14,7 @@ import org.voxelhorizons.pack.UiSpacingGlyphs;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -43,9 +44,8 @@ public final class DisplayFurnitureRenderer implements FurnitureRenderer {
     public List<UUID> spawn(Location location, float yaw, ItemStack modelItem, FurnitureDefinition definition) {
         if (!supported()) throw new IllegalStateException("Display entities are unavailable on this server");
         List<UUID> entities = new ArrayList<UUID>(2 + definition.displayParts().size());
-        Location renderLocation = FurnitureRenderTransform.applyLocalOffset(
-                location, yaw, definition.offsetX(), definition.offsetY(), definition.offsetZ(),
-                definition.offsetRotation());
+        Location renderLocation = FurnitureRenderTransform.modelLocation(
+                location, yaw, definition, FurnitureRendererType.DISPLAY);
         Entity display = renderLocation.getWorld().spawnEntity(renderLocation, EntityType.valueOf("ITEM_DISPLAY"));
         entities.add(display.getUniqueId());
         try {
@@ -111,9 +111,96 @@ public final class DisplayFurnitureRenderer implements FurnitureRenderer {
         }
     }
 
+    /**
+     * Animate by updating the ItemDisplay's item stack rather than replacing it.
+     * Keep the interaction hitbox and all display part UUIDs stable.
+     * Structural changes (parts added/removed or part type changed) still require spawn.
+     */
+    @Override
+    public boolean update(List<UUID> entityIds, Location location, float yaw,
+                          ItemStack modelItem, FurnitureDefinition definition) {
+        if (entityIds == null || entityIds.size() != 2 + definition.displayParts().size()) return false;
+        Entity display = EntitySupport.find(entityIds.get(0));
+        Entity interaction = EntitySupport.find(entityIds.get(1));
+        if (!isExpected(display, "ITEM_DISPLAY", "voxelfurniture-main")
+                || !isExpected(interaction, "INTERACTION", "voxelfurniture-interaction")) return false;
+
+        List<Entity> parts = new ArrayList<Entity>();
+        for (int i = 0; i < definition.displayParts().size(); i++) {
+            FurnitureDisplayPartDefinition part = definition.displayParts().get(i);
+            Entity entity = EntitySupport.find(entityIds.get(i + 2));
+            if (!isExpected(entity, part.type() == FurnitureDisplayPartDefinition.Type.TEXT
+                    ? "TEXT_DISPLAY" : "ITEM_DISPLAY", "voxelfurniture-part-" + part.id())) return false;
+            parts.add(entity);
+        }
+
+        try {
+            // Send a model/item metadata update to the existing ItemDisplay. This
+            // is the common animation transition and causes no entity removal.
+            invoke(display, "setItemStack", ItemStack.class, modelItem.clone());
+            applyDisplayTransform(display);
+            applyScale(display, definition.scaleX(), definition.scaleY(), definition.scaleZ());
+            applyViewDistance(display, definition.viewDistance());
+            applyPermanentGlow(display, definition.highlight());
+            moveIfNeeded(display, FurnitureRenderTransform.modelLocation(
+                    location, yaw, definition, FurnitureRendererType.DISPLAY));
+
+            Location hitbox = FurnitureRenderTransform.applyLocalOffset(
+                    location, yaw, definition.hitboxOffsetX(),
+                    definition.hitboxOffsetY() + definition.height() / 2.0D,
+                    definition.hitboxOffsetZ());
+            moveIfNeeded(interaction, hitbox);
+            invoke(interaction, "setInteractionWidth", Float.TYPE, definition.width());
+            invoke(interaction, "setInteractionHeight", Float.TYPE, definition.height());
+
+            for (int i = 0; i < parts.size(); i++) {
+                Entity entity = parts.get(i);
+                FurnitureDisplayPartDefinition part = definition.displayParts().get(i);
+                if (part.type() == FurnitureDisplayPartDefinition.Type.TEXT) {
+                    invoke(entity, "setText", String.class, resolveDisplayText(part.text()));
+                } else {
+                    ItemStack partItem = core.getItemManager().createRenderItem(part.modelItem());
+                    invoke(entity, "setItemStack", ItemStack.class, partItem);
+                    applyDisplayTransform(entity);
+                }
+                applyBillboard(entity, part.billboard());
+                applyScale(entity, part.scale(), part.scale(), part.scale());
+                applyViewDistance(entity, definition.viewDistance());
+                if (definition.highlight() != null && definition.highlight().includeParts()) {
+                    applyPermanentGlow(entity, definition.highlight());
+                } else {
+                    entity.setGlowing(false);
+                }
+                moveIfNeeded(entity, FurnitureRenderTransform.applyLocalOffset(
+                        location, yaw, part.offsetX(), part.offsetY(), part.offsetZ()));
+            }
+            return true;
+        } catch (ReflectiveOperationException exception) {
+            throw new IllegalStateException("Unable to update display furniture in place", exception);
+        }
+    }
+
+    private static boolean isExpected(Entity entity, String type, String tag) {
+        return entity != null && entity.isValid() && type.equals(entity.getType().name())
+                && entity.getScoreboardTags().contains("voxelfurniture")
+                && entity.getScoreboardTags().contains(tag);
+    }
+
+    private static void moveIfNeeded(Entity entity, Location target) {
+        Location current = entity.getLocation();
+        if (current.getWorld() == target.getWorld()
+                && current.distanceSquared(target) < 0.000001D
+                && Math.abs(current.getYaw() - target.getYaw()) < 0.001F
+                && Math.abs(current.getPitch() - target.getPitch()) < 0.001F) return;
+        entity.teleport(target);
+    }
+
     private static void applyPermanentGlow(Entity entity, FurnitureHighlightDefinition highlight)
             throws ReflectiveOperationException {
-        if (highlight == null || highlight.hover() || highlight.lineOfSight()) return;
+        if (highlight == null || highlight.hover() || highlight.lineOfSight()) {
+            entity.setGlowing(false);
+            return;
+        }
         entity.setGlowing(true);
         Class<?> colorType = Class.forName("org.bukkit.Color");
         Object color = colorType.getMethod("fromRGB", Integer.TYPE).invoke(null, highlight.rgb());
@@ -157,7 +244,8 @@ public final class DisplayFurnitureRenderer implements FurnitureRenderer {
     }
 
     private static void applyScale(Entity display, float x, float y, float z) {
-        if (x == 1.0F && y == 1.0F && z == 1.0F) return;
+        // Even the identity matrix must be written: a prior animation variant
+        // may have applied non-unit scaling on this same display entity.
         try {
             Class<?> matrixType = Class.forName("org.joml.Matrix4f");
             Object matrix = matrixType.getConstructor().newInstance();

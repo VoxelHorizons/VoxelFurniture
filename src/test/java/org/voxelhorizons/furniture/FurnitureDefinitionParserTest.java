@@ -137,6 +137,51 @@ public class FurnitureDefinitionParserTest {
         parseFurniture(furniture);
     }
 
+    @Test public void parsesFourSeatPicnicTableWithIndependentPositionsAndYaw() {
+        Map<String,Object> furniture = new LinkedHashMap<String,Object>();
+        java.util.List<Map<String,Object>> configured = new java.util.ArrayList<Map<String,Object>>();
+        for (int i = 0; i < 4; i++) {
+            Map<String,Object> seat = new LinkedHashMap<String,Object>();
+            seat.put("x", i < 2 ? -0.75D : 0.75D);
+            seat.put("y", -1.1D);
+            seat.put("z", i % 2 == 0 ? -0.65D : 0.65D);
+            seat.put("yaw", i % 2 == 0 ? 0.0D : 180.0D);
+            configured.add(seat);
+        }
+        furniture.put("seats", configured);
+        FurnitureDefinition parsed = parseFurniture(furniture);
+        assertEquals(4, parsed.seats().size());
+        assertEquals(-0.75D, parsed.seats().get(0).offsetX(), 0.000001D);
+        assertEquals(0.65D, parsed.seats().get(1).offsetZ(), 0.000001D);
+        assertEquals(180.0F, parsed.seats().get(1).yawOffset(), 0.000001F);
+        assertEquals(parsed.seats().get(0), parsed.seat());
+    }
+
+    @Test public void legacySingleSeatRemainsCompatible() {
+        Map<String,Object> one = new LinkedHashMap<String,Object>();
+        one.put("x", 0.5D);
+        Map<String,Object> furniture = new LinkedHashMap<String,Object>();
+        furniture.put("seat", one);
+        FurnitureDefinition parsed = parseFurniture(furniture);
+        assertEquals(1, parsed.seats().size());
+        assertEquals(0.5D, parsed.seat().offsetX(), 0.000001D);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsMixedSeatAndSeatsDeclarations() {
+        Map<String,Object> furniture = new LinkedHashMap<String,Object>();
+        furniture.put("seat", new LinkedHashMap<String,Object>());
+        furniture.put("seats", java.util.Collections.singletonList(new LinkedHashMap<String,Object>()));
+        parseFurniture(furniture);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsEmptyMultiSeatList() {
+        Map<String,Object> furniture = new LinkedHashMap<String,Object>();
+        furniture.put("seats", java.util.Collections.emptyList());
+        parseFurniture(furniture);
+    }
+
     @Test public void parsesIdleAnimationAndBillboardTextPart() {
         Map<String, Object> bob = new LinkedHashMap<String, Object>();
         bob.put("amplitude", 0.12D);
@@ -412,6 +457,118 @@ public class FurnitureDefinitionParserTest {
         assertEquals(-0.5D, definition.offsetY(), 0.000001D);
         assertEquals(0.5D, definition.offsetZ(), 0.000001D);
         assertEquals(0.0F, definition.offsetRotation(), 0.000001F);
+    }
+
+
+    @Test public void parsesFullBinInventoryAndAnimation() {
+        Map<String,Object> inventory = new LinkedHashMap<String,Object>();
+        inventory.put("size", 9);
+        Map<String,Object> animation = new LinkedHashMap<String,Object>();
+        animation.put("full", "voxel:oak_bin_filled");
+        Map<String,Object> furniture = new LinkedHashMap<String,Object>();
+        furniture.put("inventory", inventory);
+        furniture.put("animation", animation);
+        FurnitureDefinition parsed = parseFurniture(furniture);
+        assertEquals("CHEST", parsed.inventoryType());
+        assertEquals(9, parsed.inventorySize());
+        assertTrue(parsed.hasInventory());
+        assertEquals(ContentID.parse("voxel:oak_bin_filled", "voxel"), parsed.animationFullModel());
+        assertEquals(null, parsed.animationUseModel());
+    }
+
+    @Test public void parsesToggleOnlySinkWithoutUseOrInventory() {
+        Map<String,Object> animation = new LinkedHashMap<String,Object>();
+        animation.put("toggle", "voxel:modern_sink_flowing");
+        Map<String,Object> furniture = new LinkedHashMap<String,Object>();
+        furniture.put("animation", animation);
+        FurnitureDefinition parsed = parseFurniture(furniture);
+        assertEquals(ContentID.parse("voxel:modern_sink_flowing", "voxel"), parsed.animationToggleModel());
+        assertFalse(parsed.hasInventory());
+        assertEquals(null, parsed.animationUseModel());
+    }
+
+    @Test public void parsesTypedSmokerInventoryAndPreservesOvenUseAnimation() {
+        Map<String,Object> inventory = new LinkedHashMap<String,Object>();
+        inventory.put("type", "SMOKER");
+        inventory.put("title", "&fOven");
+        Map<String,Object> animation = new LinkedHashMap<String,Object>();
+        animation.put("use", "voxel:oven_open");
+        Map<String,Object> furniture = new LinkedHashMap<String,Object>();
+        furniture.put("inventory", inventory);
+        furniture.put("animation", animation);
+        FurnitureDefinition parsed = parseFurniture(furniture);
+        assertTrue(parsed.hasInventory());
+        assertEquals("SMOKER", parsed.inventoryType());
+        assertEquals(3, parsed.inventorySize());
+        assertEquals("&fOven", parsed.inventoryTitle());
+        assertEquals(ContentID.parse("voxel:oven_open", "voxel"), parsed.animationUseModel());
+    }
+
+    @Test public void parsesOvenActiveVariantsWithoutLosingSmokerInventory() {
+        Map<String,Object> animation = new LinkedHashMap<String,Object>();
+        animation.put("use", "voxel:oven_open");
+        animation.put("active", "voxel:oven_active");
+        animation.put("use_active", "voxel:oven_open_active");
+        Map<String,Object> inventory = new LinkedHashMap<String,Object>();
+        inventory.put("type", "SMOKER");
+        Map<String,Object> furniture = new LinkedHashMap<String,Object>();
+        furniture.put("inventory", inventory);
+        furniture.put("animation", animation);
+
+        FurnitureDefinition oven = parseFurniture(furniture);
+        assertEquals("SMOKER", oven.inventoryType());
+        assertEquals(3, oven.inventorySize());
+        assertEquals(ContentID.parse("voxel:oven_open", "voxel"), oven.animationUseModel());
+        assertEquals(ContentID.parse("voxel:oven_active", "voxel"), oven.animationActiveModel());
+        assertEquals(ContentID.parse("voxel:oven_open_active", "voxel"), oven.animationUseActiveModel());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsCookingAnimationWithoutSmokerInventory() {
+        Map<String,Object> animation = new LinkedHashMap<String,Object>();
+        animation.put("active", "voxel:oven_active");
+        Map<String,Object> inventory = new LinkedHashMap<String,Object>();
+        inventory.put("size", 27);
+        Map<String,Object> furniture = new LinkedHashMap<String,Object>();
+        furniture.put("inventory", inventory);
+        furniture.put("animation", animation);
+        parseFurniture(furniture);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsOpenActiveModelWithoutAnOpenModel() {
+        Map<String,Object> animation = new LinkedHashMap<String,Object>();
+        animation.put("active", "voxel:oven_active");
+        animation.put("use_active", "voxel:oven_open_active");
+        Map<String,Object> furniture = new LinkedHashMap<String,Object>();
+        furniture.put("animation", animation);
+        parseFurniture(furniture);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsSmokerWithChestSize() {
+        Map<String,Object> inventory = new LinkedHashMap<String,Object>();
+        inventory.put("type", "SMOKER");
+        inventory.put("size", 27);
+        Map<String,Object> furniture = new LinkedHashMap<String,Object>();
+        furniture.put("inventory", inventory);
+        parseFurniture(furniture);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsUnsupportedInventoryTypes() {
+        Map<String,Object> inventory = new LinkedHashMap<String,Object>();
+        inventory.put("type", "CREATIVE");
+        Map<String,Object> furniture = new LinkedHashMap<String,Object>();
+        furniture.put("inventory", inventory);
+        parseFurniture(furniture);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsEmptyAnimationDeclaration() {
+        Map<String,Object> furniture = new LinkedHashMap<String,Object>();
+        furniture.put("animation", new LinkedHashMap<String,Object>());
+        parseFurniture(furniture);
     }
 
     private static FurnitureDefinition parse(Object scale) {

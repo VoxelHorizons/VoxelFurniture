@@ -19,6 +19,8 @@ import org.bukkit.event.block.BlockFromToEvent;
 import org.bukkit.event.block.BlockPistonExtendEvent;
 import org.bukkit.event.block.BlockPistonRetractEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.player.PlayerArmorStandManipulateEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
@@ -42,6 +44,8 @@ public final class FurnitureListener implements Listener {
     private final FurnitureManager furniture;
     private final boolean protectEntities;
     private final FurnitureProtection protection;
+    private final FurnitureInteractionGuard clickGuard = new FurnitureInteractionGuard();
+    private boolean clickGuardResetScheduled;
 
     public FurnitureListener(VoxelCore core, FurnitureManager furniture, boolean protectEntities, FurnitureProtection protection) {
         this.core = core;
@@ -94,9 +98,13 @@ public final class FurnitureListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
     public void onCollisionInteract(PlayerInteractEvent event) {
-        if (event.getClickedBlock() == null) return;
-        // Showroom editors deliberately set useItemInHand=ALLOW to place on furniture.
-        if (event.useItemInHand() == org.bukkit.event.Event.Result.ALLOW) return;
+        if (event.getClickedBlock() == null || !mainHand(event.getHand())) return;
+        // ALLOW is also used for non-placement clicks by some plugins. Do not
+        // silently swallow a furniture block interaction unless a block item
+        // is actually being used for showroom/editor placement.
+        if (skipForExplicitBlockPlacement(
+                event.useItemInHand() == org.bukkit.event.Event.Result.ALLOW,
+                event.getItem() != null && event.getItem().getType().isBlock())) return;
         Optional<FurnitureInstance> instance = furniture.byBlock(event.getClickedBlock());
         if (!instance.isPresent()) return;
         FurnitureDefinition resolved = furniture.definition(instance.get().definitionId()).orElse(null);
@@ -123,12 +131,23 @@ public final class FurnitureListener implements Listener {
         }
     }
 
+    /** Prevent one physical click (main + off-hand) from toggling a model twice. */
+    static boolean mainHand(EquipmentSlot hand) {
+        return hand == null || hand == EquipmentSlot.HAND;
+    }
+
+    /** Explicit showroom placement must not mask ordinary furniture block clicks. */
+    static boolean skipForExplicitBlockPlacement(boolean itemUseAllowed, boolean holdingBlock) {
+        return itemUseAllowed && holdingBlock;
+    }
+
     private boolean allowsBlockPlacement(Player player, ItemStack held, FurnitureDefinition definition) {
         if (definition == null) return false;
         // An intentional interaction wins over placement unless the player
         // crouches. Noninteractive furniture remains a vanilla building surface.
         if (!player.isSneaking() && (definition.hasInventory()
                 || definition.animationUseModel() != null
+                || definition.animationToggleModel() != null
                 || definition.hasInteractionCommands())) return false;
         if (held == null || held.getType() == Material.AIR || !held.getType().isBlock()) return false;
 
@@ -212,6 +231,7 @@ public final class FurnitureListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = false)
     public void onInteract(PlayerInteractEntityEvent event) {
+        if (!mainHand(event.getHand())) return;
         Optional<FurnitureInstance> instance = furniture.byEntity(event.getRightClicked().getUniqueId());
         if (!instance.isPresent()) return;
         FurnitureDefinition resolved = furniture.definition(instance.get().definitionId()).orElse(null);
@@ -232,6 +252,18 @@ public final class FurnitureListener implements Listener {
     }
 
     private void interact(Player player, FurnitureInstance instance) {
+        // A single physical right-click can surface through both PlayerInteractEvent
+        // and PlayerInteractEntityEvent when a collision block overlaps the hitbox.
+        if (!clickGuard.accept(player.getUniqueId(), instance.id())) return;
+        if (!clickGuardResetScheduled) {
+            clickGuardResetScheduled = true;
+            core.getServer().getScheduler().runTask(core, new Runnable() {
+                @Override public void run() {
+                    clickGuard.reset();
+                    clickGuardResetScheduled = false;
+                }
+            });
+        }
         FurnitureInteractEvent interaction = new FurnitureInteractEvent(player, instance);
         org.bukkit.Bukkit.getPluginManager().callEvent(interaction);
         if (interaction.isCancelled()) return;
@@ -241,7 +273,8 @@ public final class FurnitureListener implements Listener {
             executeCommands(player, instance, definition);
             return;
         }
-        if (definition != null && !definition.hasInventory() && definition.animationUseModel() != null
+        if (definition != null && !definition.hasInventory()
+                && (definition.animationToggleModel() != null || definition.animationUseModel() != null)
                 && furniture.toggleUseAnimation(instance)) return;
         if (player.hasPermission("voxelfurniture.inventory") && furniture.openInventory(player, instance)) return;
         if (player.hasPermission("voxelfurniture.sit")) furniture.sit(player, instance);
@@ -295,6 +328,37 @@ public final class FurnitureListener implements Listener {
             else held.setAmount(held.getAmount() - 1);
         }
         return true;
+    }
+
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onSmokerClick(InventoryClickEvent event) {
+        org.bukkit.inventory.Inventory top = event.getView().getTopInventory();
+        if (!(top.getHolder() instanceof org.voxelhorizons.furniture.inventory.FurnitureInventoryHolder)
+                || !"SMOKER".equals(top.getType().name())) return;
+        // Custom inventories do not have a vanilla block entity enforcing the output slot.
+        // Players may take cooked results but must never insert their own items there.
+        if (event.getRawSlot() == 2 && event.getCursor() != null
+                && event.getCursor().getType() != Material.AIR) event.setCancelled(true);
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onSmokerDrag(InventoryDragEvent event) {
+        org.bukkit.inventory.Inventory top = event.getView().getTopInventory();
+        if (top.getHolder() instanceof org.voxelhorizons.furniture.inventory.FurnitureInventoryHolder
+                && "SMOKER".equals(top.getType().name()) && event.getRawSlots().contains(Integer.valueOf(2))) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onInventoryClick(InventoryClickEvent event) {
+        furniture.inventoryChanged(event.getView().getTopInventory());
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onInventoryDrag(InventoryDragEvent event) {
+        furniture.inventoryChanged(event.getView().getTopInventory());
     }
 
     @EventHandler

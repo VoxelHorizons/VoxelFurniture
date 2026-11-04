@@ -1,6 +1,11 @@
 package org.voxelhorizons.furniture;
 
 import org.junit.Test;
+import org.bukkit.Location;
+import org.voxelhorizons.content.compile.ItemDefinitionCompiler;
+import org.voxelhorizons.content.item.ItemType;
+import org.voxelhorizons.content.item.RawItemDefinition;
+import org.voxelhorizons.furniture.render.FurnitureRenderTransform;
 import org.voxelhorizons.content.ContentID;
 import org.voxelhorizons.content.item.ItemDefinition;
 import org.voxelhorizons.furniture.model.FurnitureDefinition;
@@ -45,6 +50,67 @@ public class FurnitureDefinitionCacheTest {
         };
         return new FurnitureDefinitionCache(id->Optional.ofNullable(items.get(id)),counting,
                 ()->revision[0]);
+    }
+
+
+    @Test public void realInheritedDresserAnimationAppliesChildOffsetOnSelectionAndReload() {
+        ContentID closedId=ContentID.parse("voxel:oak_dresser","voxel");
+        ContentID openId=ContentID.parse("voxel:oak_dresser_open","voxel");
+
+        Map<String,Object> baseOffset=new HashMap<String,Object>();
+        baseOffset.put("x",0.5D);
+        baseOffset.put("y",0.5D);
+        baseOffset.put("z",0.0D);
+        baseOffset.put("rotation",180.0D);
+        Map<String,Object> animation=new HashMap<String,Object>();
+        animation.put("use","voxel:oak_dresser_open");
+        Map<String,Object> baseFurniture=new HashMap<String,Object>();
+        baseFurniture.put("renderer","auto");
+        baseFurniture.put("offset",baseOffset);
+        baseFurniture.put("animation",animation);
+        Map<String,Object> baseProperties=new HashMap<String,Object>();
+        baseProperties.put("furniture",baseFurniture);
+
+        Map<String,Object> childOffset=new HashMap<String,Object>();
+        childOffset.put("x",0.0D);
+        Map<String,Object> childFurniture=new HashMap<String,Object>();
+        childFurniture.put("offset",childOffset);
+        Map<String,Object> childProperties=new HashMap<String,Object>();
+        childProperties.put("furniture",childFurniture);
+
+        RawItemDefinition parent=new RawItemDefinition(closedId,null,ItemType.ITEM,"OAK_PLANKS","Oak Dresser",
+                Collections.<String>emptyList(),Boolean.FALSE,Boolean.FALSE,null,baseProperties,null);
+        RawItemDefinition child=new RawItemDefinition(openId,closedId,null,null,null,
+                null,null,Boolean.TRUE,null,childProperties,null);
+        org.voxelhorizons.content.item.ItemDefinitionRegistry compiled=
+                new ItemDefinitionCompiler().compile(java.util.Arrays.asList(parent,child));
+
+        Map<ContentID,ItemDefinition> items=new HashMap<ContentID,ItemDefinition>();
+        items.put(closedId,compiled.get(closedId).get());
+        items.put(openId,compiled.get(openId).get());
+        long[] revision={1L};
+        FurnitureDefinitionCache cache=cache(items,revision,new AtomicInteger());
+        FurnitureDefinition closed=cache.definition(closedId).get();
+        FurnitureDefinition open=cache.renderDefinition(openId,closed);
+
+        assertEquals(openId,closed.animationUseModel());
+        assertEquals(0.5D,closed.offsetX(),0.000001D);
+        assertEquals(0.0D,open.offsetX(),0.000001D);
+        assertEquals(0.5D,open.offsetY(),0.000001D);
+        assertEquals(180.0F,open.offsetRotation(),0.000001F);
+        assertEquals(0.5D,
+                FurnitureRenderTransform.modelLocation(new Location(null,10,64,20),180.0F,
+                        open,FurnitureRendererType.DISPLAY).getX()
+                - FurnitureRenderTransform.modelLocation(new Location(null,10,64,20),180.0F,
+                        closed,FurnitureRendererType.DISPLAY).getX(),0.000001D);
+
+        // Reloading a changed abstract variant must invalidate the cached visual pose.
+        childOffset.put("x",2.0D);
+        compiled=new ItemDefinitionCompiler().compile(java.util.Arrays.asList(parent,child));
+        items.put(openId,compiled.get(openId).get());
+        revision[0]=2L;
+        FurnitureDefinition refreshed=cache.renderDefinition(openId,cache.definition(closedId).get());
+        assertEquals(2.0D,refreshed.offsetX(),0.000001D);
     }
 
     @Test public void animationBaseAndAbstractRenderVariantParseOncePerRevision(){

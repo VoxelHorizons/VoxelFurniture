@@ -14,6 +14,7 @@ import org.bukkit.entity.HumanEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.inventory.Inventory;
+import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.inventory.ItemStack;
 import org.voxelhorizons.VoxelCore;
 import org.voxelhorizons.content.ContentID;
@@ -22,6 +23,9 @@ import org.voxelhorizons.furniture.bedrock.BedrockFurnitureSnapshot;
 import org.voxelhorizons.furniture.event.FurnitureBreakEvent;
 import org.voxelhorizons.furniture.event.FurniturePlaceEvent;
 import org.voxelhorizons.furniture.inventory.FurnitureInventoryHolder;
+import org.voxelhorizons.furniture.inventory.FurnitureSmokerProcessor;
+import org.voxelhorizons.furniture.inventory.FurnitureSmokerViewUpdater;
+import org.voxelhorizons.furniture.model.FurnitureAnimationSelection;
 import org.voxelhorizons.furniture.model.FurnitureDefinition;
 import org.voxelhorizons.furniture.model.FurnitureValues;
 import org.voxelhorizons.furniture.model.FurnitureDisplayPartDefinition;
@@ -37,6 +41,7 @@ import org.voxelhorizons.furniture.model.FurnitureStateRule;
 import org.voxelhorizons.furniture.render.EntitySupport;
 import org.voxelhorizons.furniture.render.FurnitureRenderer;
 import org.voxelhorizons.furniture.render.FurnitureRendererSelector;
+import org.voxelhorizons.furniture.render.FurnitureRendererUpdate;
 import org.voxelhorizons.furniture.render.FurnitureRenderTransform;
 import org.voxelhorizons.furniture.store.FurnitureStore;
 
@@ -69,8 +74,15 @@ public final class FurnitureManager {
     private final Plugin plugin;
     private final FurnitureStore store;
     private final Map<UUID, FurnitureInstance> instances;
-    private final Map<UUID, ArmorStand> seats = new LinkedHashMap<UUID, ArmorStand>();
+    // Each furniture instance may have multiple separately occupied seat anchors.
+    private final Map<UUID, Map<Integer, ArmorStand>> seats =
+            new LinkedHashMap<UUID, Map<Integer, ArmorStand>>();
     private final Map<UUID, Inventory> openInventories = new LinkedHashMap<UUID, Inventory>();
+    // Smoker inventories and cooking sessions persist after the UI closes.
+    private final Set<UUID> smokerIds = new HashSet<UUID>();
+    private final Map<UUID, Inventory> smokerInventories = new LinkedHashMap<UUID, Inventory>();
+    private final Map<UUID, FurnitureSmokerProcessor> smokerProcessors =
+            new LinkedHashMap<UUID, FurnitureSmokerProcessor>();
     private final Map<UUID, Long> pendingInventoryCloses = new LinkedHashMap<UUID, Long>();
     private final Map<UUID, UUID> entityIndex = new LinkedHashMap<UUID, UUID>();
     private final Map<BlockKey, UUID> blockIndex = new LinkedHashMap<BlockKey, UUID>();
@@ -96,6 +108,7 @@ public final class FurnitureManager {
         this.pendingSynchronization.addAll(this.instances.keySet());
         this.contentRevision = core.getContentRuntime().current().revision();
         rebuildIndex();
+        rebuildSmokerIndex();
         plugin.getServer().getScheduler().runTaskTimer(plugin, new Runnable() {
             @Override public void run() {
                 cleanupSeats();
@@ -103,7 +116,10 @@ public final class FurnitureManager {
             }
         }, 20L, 20L);
         plugin.getServer().getScheduler().runTaskTimer(plugin, new Runnable() {
-            @Override public void run() { animateIdleDisplays(); }
+            @Override public void run() {
+                animateIdleDisplays();
+                tickSmokers();
+            }
         }, 1L, 1L);
     }
 
@@ -216,6 +232,7 @@ public final class FurnitureManager {
                     renderer.type(), entities, collisionBlocks, state.model(), state.yaw(), signature,
                     Collections.<ItemStack>emptyList(), dyeColor, false);
             instances.put(instance.id(), instance);
+            if ("SMOKER".equals(definition.inventoryType())) smokerIds.add(instance.id());
             index(instance);
             save();
             refreshAround(location);
@@ -223,6 +240,7 @@ public final class FurnitureManager {
         } catch (RuntimeException exception) {
             if (instance != null) {
                 instances.remove(instance.id());
+                smokerIds.remove(instance.id());
                 unindex(instance);
             }
             renderer.remove(entities);
@@ -241,6 +259,7 @@ public final class FurnitureManager {
         renderers.select(instance.renderer()).remove(instance.entities());
         removeBlocks(instance.location().getWorld(), instance.blocks());
         instances.remove(instance.id());
+        smokerIds.remove(instance.id());
         pendingSynchronization.remove(instance.id());
         forcedSynchronization.remove(instance.id());
         unindex(instance);
@@ -307,14 +326,16 @@ public final class FurnitureManager {
         if (!changed) return true;
         for (FurnitureInstance member : group) {
             FurnitureInstance updated = instances.get(member.id());
-            if (updated != null) refresh(updated);
+            if (updated != null) refresh(updated, false);
         }
+        // Persist the entire group once, rather than one disk write per neighbor.
         save();
         return true;
     }
 
     private boolean canToggleUseAnimation(FurnitureDefinition definition) {
-        return definition != null && !definition.hasInventory() && definition.animationUseModel() != null;
+        return definition != null && !definition.hasInventory()
+                && (definition.animationToggleModel() != null || definition.animationUseModel() != null);
     }
 
     private FurnitureInstance withUseAnimationState(FurnitureInstance instance, boolean active) {
@@ -359,6 +380,7 @@ public final class FurnitureManager {
         if (instance == null) return false;
         instance = sealInventory(instance);
         instances.remove(instanceId);
+        smokerIds.remove(instanceId);
         pendingSynchronization.remove(instance.id());
         forcedSynchronization.remove(instance.id());
         removeSeat(instance.id());
@@ -389,20 +411,114 @@ public final class FurnitureManager {
 
         Inventory inventory = openInventories.get(instance.id());
         if (inventory == null || inventory.getSize() != definition.inventorySize()) {
-            FurnitureInventoryHolder holder = new FurnitureInventoryHolder(instance.id());
-            inventory = Bukkit.createInventory(holder, definition.inventorySize(), inventoryTitle(definition));
-            holder.bind(inventory);
-            List<ItemStack> stored = instance.inventoryContents();
-            for (int slot = 0; slot < stored.size() && slot < inventory.getSize(); slot++) {
-                ItemStack item = stored.get(slot);
-                inventory.setItem(slot, item == null ? null : item.clone());
+            if ("SMOKER".equals(definition.inventoryType())) inventory = smokerInventories.get(instance.id());
+            if (inventory == null || inventory.getSize() != definition.inventorySize()) {
+                inventory = createInventory(instance, definition);
+                if ("SMOKER".equals(definition.inventoryType())) smokerInventories.put(instance.id(), inventory);
             }
             openInventories.put(instance.id(), inventory);
             refresh(instance);
         }
         pendingInventoryCloses.remove(instance.id());
         player.openInventory(inventory);
+        if ("SMOKER".equals(definition.inventoryType())) {
+            FurnitureSmokerProcessor processor = smokerProcessors.get(instance.id());
+            if (processor != null) FurnitureSmokerViewUpdater.update(inventory, processor);
+        }
         return true;
+    }
+
+    private Inventory createInventory(FurnitureInstance instance, FurnitureDefinition definition) {
+        FurnitureInventoryHolder holder = new FurnitureInventoryHolder(instance.id());
+        Inventory created;
+        if ("SMOKER".equals(definition.inventoryType())) {
+            InventoryType type = InventoryType.valueOf("SMOKER");
+            created = Bukkit.createInventory(holder, type, inventoryTitle(definition));
+        } else {
+            created = Bukkit.createInventory(holder, definition.inventorySize(), inventoryTitle(definition));
+        }
+        holder.bind(created);
+        List<ItemStack> stored = instance.inventoryContents();
+        for (int slot = 0; slot < stored.size() && slot < created.getSize(); slot++) {
+            ItemStack item = stored.get(slot);
+            created.setItem(slot, item == null ? null : item.clone());
+        }
+        return created;
+    }
+
+    /**
+     * Runs next tick, after Bukkit has applied inventory click/drag item transfers.
+     * Full-bin visuals update while viewers still have the inventory open.
+     */
+    public void inventoryChanged(final Inventory inventory) {
+        if (inventory == null || !(inventory.getHolder() instanceof FurnitureInventoryHolder)) return;
+        final UUID instanceId = ((FurnitureInventoryHolder) inventory.getHolder()).instanceId();
+        plugin.getServer().getScheduler().runTask(plugin, new Runnable() {
+            @Override public void run() {
+                if (openInventories.get(instanceId) != inventory) return;
+                FurnitureInstance instance = instances.get(instanceId);
+                if (instance == null) return;
+                FurnitureInstance updated = withInventoryContents(instance, inventory.getContents());
+                instances.put(instanceId, updated);
+                refresh(updated, false);
+                save();
+            }
+        });
+    }
+
+    private void rebuildSmokerIndex() {
+        smokerIds.clear();
+        for (FurnitureInstance instance : instances.values()) {
+            FurnitureDefinition definition = definition(instance.definitionId()).orElse(null);
+            if (definition != null && "SMOKER".equals(definition.inventoryType())) smokerIds.add(instance.id());
+        }
+        smokerInventories.keySet().retainAll(smokerIds);
+        smokerProcessors.keySet().retainAll(smokerIds);
+    }
+
+    private void tickSmokers() {
+        // Only tick actual smoker furniture, not every placed display or seat on the server.
+        for (UUID id : new ArrayList<UUID>(smokerIds)) {
+            FurnitureInstance instance = instances.get(id);
+            if (instance == null || !isOriginChunkLoaded(instance)) continue;
+            FurnitureDefinition definition = definition(instance.definitionId()).orElse(null);
+            if (definition == null || !"SMOKER".equals(definition.inventoryType())) continue;
+            Inventory inventory = smokerInventories.get(instance.id());
+            if (inventory == null) {
+                if (instance.inventoryContents().isEmpty()) continue;
+                inventory = createInventory(instance, definition);
+                smokerInventories.put(instance.id(), inventory);
+            }
+            FurnitureSmokerProcessor processor = smokerProcessors.get(instance.id());
+            if (processor == null) {
+                processor = new FurnitureSmokerProcessor();
+                smokerProcessors.put(instance.id(), processor);
+            }
+            boolean wasCooking = processor.isCooking(inventory);
+            boolean contentsChanged = processor.tick(inventory);
+            boolean cookingStateChanged = wasCooking != processor.isCooking(inventory);
+
+            // The virtual inventory has no native smoker block to populate
+            // the fire and arrow data slots in the client-side menu.
+            // Ten GUI updates/second provide smooth progress without sending
+            // four container properties to every viewer on every server tick.
+            if ((animationTick & 1L) == 0L) {
+                FurnitureSmokerViewUpdater.update(inventory, processor);
+            }
+            if (!contentsChanged && !cookingStateChanged) continue;
+
+            FurnitureInstance updated = instance;
+            if (contentsChanged) {
+                updated = withInventoryContents(instance, inventory.getContents());
+                instances.put(updated.id(), updated);
+            }
+            // Full outputs, emptied inputs and exhausted fuel all transition
+            // the active model back to idle without replacing its entity UUID.
+            if (cookingStateChanged || (contentsChanged && definition.animationFullModel() != null)) {
+                refresh(updated, false);
+            }
+            if (contentsChanged) save();
+        }
     }
 
     private String inventoryTitle(FurnitureDefinition furniture) {
@@ -476,6 +592,9 @@ public final class FurnitureManager {
     private FurnitureInstance sealInventory(FurnitureInstance instance) {
         pendingInventoryCloses.remove(instance.id());
         Inventory inventory = openInventories.remove(instance.id());
+        Inventory smoker = smokerInventories.remove(instance.id());
+        smokerProcessors.remove(instance.id());
+        if (inventory == null) inventory = smoker;
         if (inventory == null) return instance;
         for (HumanEntity viewer : new ArrayList<HumanEntity>(inventory.getViewers())) viewer.closeInventory();
         FurnitureInstance updated = withInventoryContents(instance, inventory.getContents());
@@ -517,17 +636,24 @@ public final class FurnitureManager {
     public boolean sit(Player player, FurnitureInstance instance) {
         if (player == null || instance == null || player.getVehicle() != null) return false;
         FurnitureDefinition definition = definition(instance.definitionId()).orElse(null);
-        if (definition == null || definition.seat() == null) return false;
+        if (definition == null || definition.seats().isEmpty()) return false;
 
-        ArmorStand existing = seats.get(instance.id());
-        if (existing != null) {
-            if (existing.isValid() && !existing.getPassengers().isEmpty()) return false;
-            existing.remove();
-            seats.remove(instance.id());
+        Map<Integer, ArmorStand> active = seats.get(instance.id());
+        if (active == null) active = new LinkedHashMap<Integer, ArmorStand>();
+
+        // Clicks can arrive from anywhere on a multi-block picnic table.
+        // Prefer the nearest unoccupied seat, not the first configured seat.
+        List<Location> positions = new ArrayList<Location>();
+        for (FurnitureSeatDefinition configured : definition.seats()) {
+            positions.add(seatLocation(instance, configured));
         }
+        int selected = nearestFreeSeat(positions, player.getLocation(), active);
+        if (selected < 0) return false;
 
-        FurnitureSeatDefinition seat = definition.seat();
-        Location location = seatLocation(instance, seat);
+        ArmorStand stale = active.remove(Integer.valueOf(selected));
+        if (stale != null && stale.isValid()) stale.remove();
+
+        Location location = positions.get(selected);
         ArmorStand stand = location.getWorld().spawn(location, ArmorStand.class);
         stand.setVisible(false);
         stand.setGravity(false);
@@ -540,9 +666,7 @@ public final class FurnitureManager {
         stand.setSilent(true);
         stand.addScoreboardTag("voxelfurniture-seat");
 
-        // Vehicles do not force a player's camera/body yaw to match the mount.
-        // Align the rider before mounting so seat.yaw can correct furniture
-        // models authored facing a different direction without dismounting them.
+        // Align the player's yaw before mounting, as with legacy single seats.
         Location playerLocation = player.getLocation();
         playerLocation.setYaw(location.getYaw());
         player.teleport(playerLocation);
@@ -552,8 +676,35 @@ public final class FurnitureManager {
             return false;
         }
 
-        seats.put(instance.id(), stand);
+        active.put(Integer.valueOf(selected), stand);
+        seats.put(instance.id(), active);
         return true;
+    }
+
+    /**
+     * Returns the closest available seat, or -1 if every valid seat is occupied.
+     * Kept separate for deterministic tests and to avoid the main-seat-only path.
+     */
+    static int nearestFreeSeat(List<Location> positions, Location player,
+                               Map<Integer, ArmorStand> active) {
+        if (positions == null || player == null) return -1;
+        int best = -1;
+        double bestDistance = Double.POSITIVE_INFINITY;
+        for (int i = 0; i < positions.size(); i++) {
+            ArmorStand stand = active.get(Integer.valueOf(i));
+            if (stand != null && stand.isValid() && !stand.getPassengers().isEmpty()) continue;
+            Location loc = positions.get(i);
+            if (loc.getWorld() != player.getWorld()) continue;
+            double dx = loc.getX() - player.getX();
+            double dy = loc.getY() - player.getY();
+            double dz = loc.getZ() - player.getZ();
+            double distance = dx * dx + dy * dy + dz * dz;
+            if (distance < bestDistance) {
+                best = i;
+                bestDistance = distance;
+            }
+        }
+        return best;
     }
 
     static Location seatLocation(FurnitureInstance instance, FurnitureSeatDefinition seat) {
@@ -569,22 +720,32 @@ public final class FurnitureManager {
     }
 
     private void cleanupSeats() {
-        for (Map.Entry<UUID, ArmorStand> entry : new ArrayList<Map.Entry<UUID, ArmorStand>>(seats.entrySet())) {
-            ArmorStand stand = entry.getValue();
+        for (Map.Entry<UUID, Map<Integer, ArmorStand>> entry
+                : new ArrayList<Map.Entry<UUID, Map<Integer, ArmorStand>>>(seats.entrySet())) {
             FurnitureInstance instance = instances.get(entry.getKey());
             FurnitureDefinition definition = instance == null ? null
                     : definition(instance.definitionId()).orElse(null);
-            if (stand == null || !stand.isValid() || stand.getPassengers().isEmpty()
-                    || definition == null || definition.seat() == null) {
-                if (stand != null && stand.isValid()) stand.remove();
-                seats.remove(entry.getKey());
+            int configured = definition == null ? 0 : definition.seats().size();
+
+            for (Map.Entry<Integer, ArmorStand> seat
+                    : new ArrayList<Map.Entry<Integer, ArmorStand>>(entry.getValue().entrySet())) {
+                ArmorStand stand = seat.getValue();
+                if (stand == null || !stand.isValid() || stand.getPassengers().isEmpty()
+                        || seat.getKey().intValue() >= configured) {
+                    if (stand != null && stand.isValid()) stand.remove();
+                    entry.getValue().remove(seat.getKey());
+                }
             }
+            if (entry.getValue().isEmpty()) seats.remove(entry.getKey());
         }
     }
 
     private void removeSeat(UUID instanceId) {
-        ArmorStand stand = seats.remove(instanceId);
-        if (stand != null && stand.isValid()) stand.remove();
+        Map<Integer, ArmorStand> active = seats.remove(instanceId);
+        if (active == null) return;
+        for (ArmorStand stand : active.values()) {
+            if (stand != null && stand.isValid()) stand.remove();
+        }
     }
 
     public void shutdown() {
@@ -592,11 +753,14 @@ public final class FurnitureManager {
             FurnitureInstance instance = instances.get(id);
             if (instance != null) sealInventory(instance);
         }
-        save();
-        for (ArmorStand stand : new ArrayList<ArmorStand>(seats.values())) {
-            if (stand != null && stand.isValid()) stand.remove();
+        for (Map.Entry<UUID, Inventory> entry : new ArrayList<Map.Entry<UUID, Inventory>>(smokerInventories.entrySet())) {
+            FurnitureInstance instance = instances.get(entry.getKey());
+            if (instance != null) instances.put(instance.id(), withInventoryContents(instance, entry.getValue().getContents()));
         }
-        seats.clear();
+        save();
+        for (UUID instanceId : new ArrayList<UUID>(seats.keySet())) {
+            removeSeat(instanceId);
+        }
     }
 
     private void synchronizeIfContentChanged() {
@@ -605,6 +769,7 @@ public final class FurnitureManager {
 
         try {
             validateDefinitions();
+            rebuildSmokerIndex();
             pendingSynchronization.addAll(instances.keySet());
             forcedSynchronization.addAll(instances.keySet());
             synchronizePendingLoaded();
@@ -714,15 +879,23 @@ public final class FurnitureManager {
                 visualDefinition, selected, replacementRenderer.type(), desiredBlocks, modelItem);
 
         if (!force && desiredSignature.equals(instance.renderSignature())
-                && rendererEntitiesPresent(instance, visualDefinition)) {
+                && rendererEntitiesPresent(instance, visualDefinition)
+                && rendererAtExpectedPosition(instance, visualDefinition, selected, replacementRenderer.type())) {
             refreshSeat(instance, definition);
             return true;
         }
 
         List<UUID> replacement = Collections.emptyList();
+        boolean reused = false;
 
         try {
-            replacement = replacementRenderer.spawn(instance.location(), selected.yaw(), modelItem, visualDefinition);
+            FurnitureRendererUpdate.Result change = FurnitureRendererUpdate.apply(
+                    replacementRenderer, instance.entities(),
+                    replacementRenderer.type() == instance.renderer()
+                            && rendererEntitiesPresent(instance, visualDefinition),
+                    instance.location(), selected.yaw(), modelItem, visualDefinition);
+            replacement = change.entities();
+            reused = change.reused();
 
             List<FurnitureBlockPosition> finalBlocks = instance.blocks();
             if (!sameBlocks(instance.blocks(), desiredBlocks)) {
@@ -745,18 +918,16 @@ public final class FurnitureManager {
                     selected.model(), selected.yaw(), appliedSignature, instance.inventoryContents(), instance.dyeColor(),
                     instance.useAnimationActive());
 
-            // Remove the renderer that furniture.yml currently owns before
-            // replacing its UUIDs. If any historical renderer cannot be found
-            // now, it becomes an unreferenced tagged orphan and the chunk
-            // sweeper removes it as soon as that entity loads.
-            renderers.select(instance.renderer()).remove(instance.entities());
+            // Model animation changes retain the same display and interaction UUIDs.
+            // Only remove entities if a renderer type/part structure really changed.
+            if (!reused) renderers.select(instance.renderer()).remove(instance.entities());
             unindex(instance);
             instances.put(updated.id(), updated);
             index(updated);
             refreshSeat(updated, definition);
             return true;
         } catch (RuntimeException exception) {
-            replacementRenderer.remove(replacement);
+            if (!reused) replacementRenderer.remove(replacement);
             plugin.getLogger().warning("Unable to synchronize furniture " + instance.id() + " ("
                     + instance.definitionId() + "): " + exception.getMessage());
             return false;
@@ -772,6 +943,32 @@ public final class FurnitureManager {
             if (entity == null || !entity.getScoreboardTags().contains("voxelfurniture")) return false;
         }
         return true;
+    }
+
+    /**
+     * A matching render signature is insufficient if the actual model entity is still
+     * at an earlier animation state's position (or was moved externally). Make offset
+     * correctness part of the no-op decision, not just the model/item signature.
+     */
+    private boolean rendererAtExpectedPosition(FurnitureInstance instance, FurnitureDefinition visual,
+                                               FurnitureStateSelector.Selection selected,
+                                               org.voxelhorizons.furniture.model.FurnitureRendererType type) {
+        // Idle bobbing deliberately moves the main entity away from its resting pose.
+        if (visual.idleAnimation() != null && visual.idleAnimation().enabled()) return true;
+        Location expected = FurnitureRenderTransform.modelLocation(instance.location(), selected.yaw(), visual, type);
+        for (UUID id : instance.entities()) {
+            Entity entity = EntitySupport.find(id);
+            if (entity == null) return false;
+            if (type != org.voxelhorizons.furniture.model.FurnitureRendererType.ARMOR_STAND
+                    && !entity.getScoreboardTags().contains("voxelfurniture-main")) continue;
+            Location actual = entity.getLocation();
+            if (!expected.getWorld().equals(actual.getWorld())) return false;
+            double dx = actual.getX() - expected.getX();
+            double dy = actual.getY() - expected.getY();
+            double dz = actual.getZ() - expected.getZ();
+            return dx * dx + dy * dy + dz * dz <= 0.000001D;
+        }
+        return false;
     }
 
     private String renderSignature(FurnitureDefinition definition, FurnitureStateSelector.Selection selected,
@@ -814,8 +1011,7 @@ public final class FurnitureManager {
                     .append(',').append(block.material().name());
         }
 
-        FurnitureSeatDefinition seat = definition.seat();
-        if (seat != null) {
+        for (FurnitureSeatDefinition seat : definition.seats()) {
             value.append("|seat:")
                     .append(seat.offsetX()).append(',').append(seat.offsetY()).append(',')
                     .append(seat.offsetZ()).append(',').append(seat.yawOffset());
@@ -936,14 +1132,24 @@ public final class FurnitureManager {
     }
 
     private void refreshSeat(FurnitureInstance instance, FurnitureDefinition definition) {
-        ArmorStand stand = seats.get(instance.id());
-        if (definition.seat() == null) {
+        if (definition.seats().isEmpty()) {
             removeSeat(instance.id());
             return;
         }
-        if (stand != null && stand.isValid()) {
-            stand.teleport(seatLocation(instance, definition.seat()));
+        Map<Integer, ArmorStand> active = seats.get(instance.id());
+        if (active == null) return;
+        for (Map.Entry<Integer, ArmorStand> entry
+                : new ArrayList<Map.Entry<Integer, ArmorStand>>(active.entrySet())) {
+            ArmorStand stand = entry.getValue();
+            int slot = entry.getKey().intValue();
+            if (slot < 0 || slot >= definition.seats().size()) {
+                if (stand != null && stand.isValid()) stand.remove();
+                active.remove(entry.getKey());
+            } else if (stand != null && stand.isValid()) {
+                stand.teleport(seatLocation(instance, definition.seats().get(slot)));
+            }
         }
+        if (active.isEmpty()) seats.remove(instance.id());
     }
 
     private boolean canMigrateBlocks(FurnitureInstance instance, List<FurnitureBlockPosition> desired) {
@@ -1008,6 +1214,49 @@ public final class FurnitureManager {
             if (furniture.animationUseModel() != null && !renderable(furniture.animationUseModel())) {
                 throw new IllegalArgumentException("Furniture " + furniture.itemId()
                         + " references unrenderable animation.use model " + furniture.animationUseModel());
+            }
+            if (furniture.animationFullModel() != null) {
+                if (!furniture.hasInventory()) throw new IllegalArgumentException("Furniture " + furniture.itemId()
+                        + " uses animation.full without an inventory");
+                if (!renderable(furniture.animationFullModel())) throw new IllegalArgumentException("Furniture "
+                        + furniture.itemId() + " references unrenderable animation.full model " + furniture.animationFullModel());
+            }
+            if (furniture.animationToggleModel() != null) {
+                if (furniture.hasInventory()) throw new IllegalArgumentException("Furniture " + furniture.itemId()
+                        + " cannot use animation.toggle and an inventory together");
+                if (!renderable(furniture.animationToggleModel())) throw new IllegalArgumentException("Furniture "
+                        + furniture.itemId() + " references unrenderable animation.toggle model " + furniture.animationToggleModel());
+            }
+            if (furniture.animationActiveModel() != null) {
+                if (!furniture.hasInventory() || !"SMOKER".equals(furniture.inventoryType())) {
+                    throw new IllegalArgumentException("Furniture " + furniture.itemId()
+                            + " requires inventory.type: SMOKER for animation.active");
+                }
+                if (!renderable(furniture.animationActiveModel())) {
+                    throw new IllegalArgumentException("Furniture " + furniture.itemId()
+                            + " references unrenderable animation.active model " + furniture.animationActiveModel());
+                }
+            }
+            if (furniture.animationUseActiveModel() != null) {
+                if (furniture.animationActiveModel() == null || furniture.animationUseModel() == null) {
+                    throw new IllegalArgumentException("Furniture " + furniture.itemId()
+                            + " requires animation.use and animation.active for animation.use_active");
+                }
+                if (!renderable(furniture.animationUseActiveModel())) {
+                    throw new IllegalArgumentException("Furniture " + furniture.itemId()
+                            + " references unrenderable animation.use_active model "
+                            + furniture.animationUseActiveModel());
+                }
+            }
+            if ("SMOKER".equals(furniture.inventoryType())) {
+                try {
+                    // 1.12 has InventoryType but no isCreatable() method. Only resolve
+                    // the enum constant here so this binary remains cross-version safe.
+                    InventoryType.valueOf("SMOKER");
+                } catch (IllegalArgumentException exception) {
+                    throw new IllegalArgumentException("Furniture " + furniture.itemId()
+                            + " requires Minecraft 1.14+ for inventory.type: SMOKER", exception);
+                }
             }
         }
     }
@@ -1088,21 +1337,35 @@ public final class FurnitureManager {
     private FurnitureStateSelector.Selection selection(FurnitureDefinition definition,
                                                                FurnitureInstance instance) {
         FurnitureStateSelector.Selection selected = state(definition, instance.location(), instance.yaw());
-        boolean inventoryAnimation = openInventories.containsKey(instance.id());
-        boolean interactionAnimation = !definition.hasInventory() && instance.useAnimationActive();
-        if ((inventoryAnimation || interactionAnimation) && definition.animationUseModel() != null) {
-            return new FurnitureStateSelector.Selection(definition.animationUseModel(), selected.yaw());
+        boolean inventoryOpen = openInventories.containsKey(instance.id());
+        boolean full = false;
+        if (definition.animationFullModel() != null) {
+            Inventory live = openInventories.get(instance.id());
+            if (live == null) live = smokerInventories.get(instance.id());
+            full = live == null
+                    ? FurnitureAnimationSelection.isFull(instance.inventoryContents(), definition.inventorySize())
+                    : FurnitureAnimationSelection.isFull(live.getContents(), definition.inventorySize());
         }
-        return selected;
+        FurnitureSmokerProcessor processor = smokerProcessors.get(instance.id());
+        Inventory liveSmoker = smokerInventories.get(instance.id());
+        boolean cooking = "SMOKER".equals(definition.inventoryType())
+                && processor != null && processor.isCooking(liveSmoker);
+        ContentID model = FurnitureAnimationSelection.model(definition, selected.model(),
+                inventoryOpen, full, instance.useAnimationActive(), cooking);
+        return model.equals(selected.model()) ? selected
+                : new FurnitureStateSelector.Selection(model, selected.yaw());
     }
 
     private void refresh(FurnitureInstance instance) {
+        refresh(instance, true);
+    }
+
+    /** Use persist=false when the caller is already saving a batch of state changes. */
+    private void refresh(FurnitureInstance instance, boolean persist) {
         FurnitureDefinition definition = definition(instance.definitionId()).orElse(null);
         if (definition == null) return;
-        boolean animated = definition.animationUseModel() != null
-                && (openInventories.containsKey(instance.id())
-                || (!definition.hasInventory() && instance.useAnimationActive()));
-        if (definition.states().isEmpty() && !animated && definition.modelItemId().equals(instance.renderedModel())) return;
+        // Always resolve the current model, including inventory fullness and manual toggles.
+        // Never skip transform reconciliation merely because the model ID is unchanged.
         FurnitureStateSelector.Selection selected = selection(definition, instance);
         FurnitureDefinition visualDefinition = renderDefinition(selected.model(), definition);
         FurnitureRenderer renderer = renderers.select(visualDefinition.renderer());
@@ -1110,17 +1373,27 @@ public final class FurnitureManager {
             ItemStack modelItem = renderItem(selected.model(), instance.dyeColor());
             String signature = renderSignature(visualDefinition, selected, renderer.type(), instance.blocks(), modelItem);
             if (signature.equals(instance.renderSignature()) && renderer.type() == instance.renderer()
-                    && rendererEntitiesPresent(instance, visualDefinition)) return;
-            List<UUID> replacement = renderer.spawn(instance.location(), selected.yaw(), modelItem, visualDefinition);
+                    && rendererEntitiesPresent(instance, visualDefinition)
+                    && rendererAtExpectedPosition(instance, visualDefinition, selected, renderer.type())) return;
+            FurnitureRendererUpdate.Result change = FurnitureRendererUpdate.apply(
+                    renderer, instance.entities(),
+                    renderer.type() == instance.renderer()
+                            && rendererEntitiesPresent(instance, visualDefinition),
+                    instance.location(), selected.yaw(), modelItem, visualDefinition);
             FurnitureInstance updated = new FurnitureInstance(instance.id(), instance.definitionId(), instance.location(),
-                    instance.yaw(), renderer.type(), replacement, instance.blocks(), selected.model(), selected.yaw(),
+                    instance.yaw(), renderer.type(), change.entities(), instance.blocks(), selected.model(), selected.yaw(),
                     signature, instance.inventoryContents(), instance.dyeColor(), instance.useAnimationActive());
-            unindex(instance);
-            instances.put(updated.id(), updated);
-            index(updated);
-            renderers.select(instance.renderer()).remove(instance.entities());
-            save();
-            cleanupOriginChunk(instance.location());
+            if (!change.reused()) {
+                unindex(instance);
+                instances.put(updated.id(), updated);
+                index(updated);
+                renderers.select(instance.renderer()).remove(instance.entities());
+                cleanupOriginChunk(instance.location());
+            } else {
+                // Existing entity UUIDs and their look-up indices remain unchanged.
+                instances.put(updated.id(), updated);
+            }
+            if (persist) save();
         } catch (RuntimeException exception) {
             Bukkit.getLogger().warning("Unable to update furniture state " + instance.id() + ": " + exception.getMessage());
         }
