@@ -35,6 +35,47 @@ public class FurnitureSmokerCookingTest {
         assertEquals(1, slots[2].getAmount());
     }
 
+    @Test public void fullOutputDisablesActiveModelEvenWithFuelRemaining() {
+        final ItemStack[] slots = new ItemStack[] {
+                new TestStack(Material.valueOf("RAW_BEEF"), 3),
+                new ItemStack(Material.COAL, 2),
+                new TestStack(Material.COOKED_BEEF, 63)
+        };
+        Inventory inventory = fakeInventory(slots);
+        FurnitureSmokerProcessor processor = new FurnitureSmokerProcessor(
+                input -> new TestRecipe(new TestStack(Material.COOKED_BEEF, 1), 1));
+
+        assertTrue(processor.tick(inventory));
+        assertEquals(64, slots[2].getAmount());
+        assertTrue("Fuel is still burning after the output fills", processor.isBurning());
+        assertFalse("Oven must be visually inactive with no output space", processor.isCooking(inventory));
+
+        // Removing cooked items must immediately restore the active state;
+        // another fuel item must not be consumed while fuel remains.
+        slots[2].setAmount(63);
+        assertTrue("Output becoming available resumes active model", processor.isCooking(inventory));
+        assertTrue(processor.tick(inventory));
+        assertFalse(processor.isCooking(inventory));
+        assertEquals(1, slots[1].getAmount());
+    }
+
+    @Test public void noInputDisablesActiveModelWhileFuelStillBurns() {
+        final ItemStack[] slots = new ItemStack[] {
+                new TestStack(Material.valueOf("RAW_BEEF"), 1),
+                new ItemStack(Material.COAL, 1),
+                null
+        };
+        Inventory inventory = fakeInventory(slots);
+        FurnitureSmokerProcessor processor = new FurnitureSmokerProcessor(
+                input -> new TestRecipe(new TestStack(Material.COOKED_BEEF, 1), 1));
+
+        assertTrue(processor.tick(inventory));
+        assertTrue(processor.isBurning());
+        assertFalse("All input was consumed, so the active model must stop", processor.isCooking(inventory));
+        assertFalse(processor.tick(inventory));
+        assertTrue("Vanilla fuel still burns down independently", processor.isBurning());
+    }
+
     @Test public void unsupportedInputNeverConsumesFuel() {
         final ItemStack[] slots = new ItemStack[] {
                 new ItemStack(Material.STONE, 1),
@@ -72,6 +113,17 @@ public class FurnitureSmokerCookingTest {
                     }
                     return null;
                 });
+    }
+
+    /** No server ItemFactory is present in unit tests. */
+    private static final class TestStack extends ItemStack {
+        TestStack(Material type, int count) { super(type, count); }
+        @Override public boolean isSimilar(ItemStack other) {
+            return other != null && other.getType() == getType();
+        }
+        @Override public TestStack clone() {
+            return new TestStack(getType(), getAmount());
+        }
     }
 
     public static final class TestRecipe implements Recipe {
