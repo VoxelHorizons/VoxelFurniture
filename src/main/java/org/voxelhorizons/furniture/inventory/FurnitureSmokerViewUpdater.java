@@ -29,7 +29,12 @@ public final class FurnitureSmokerViewUpdater {
 
         for (HumanEntity viewer : new ArrayList<HumanEntity>(inventory.getViewers())) {
             InventoryView view = viewer.getOpenInventory();
-            if (view == null || view.getTopInventory() != inventory) continue;
+            if (view == null) continue;
+            // Some server versions wrap the same backing inventory in a
+            // different Inventory object for the view.
+            Inventory shown = view.getTopInventory();
+            if (shown != inventory && (shown == null
+                    || shown.getHolder() != inventory.getHolder())) continue;
             setProgress(view, burning, fuelDuration, cooking, cookingDuration);
         }
     }
