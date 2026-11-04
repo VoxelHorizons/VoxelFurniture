@@ -56,7 +56,7 @@ Right-click switches between base and toggle models. No `animation.use`,
 on the placed instance. The existing `setUseAnimation(instance, boolean)` and
 `toggleUseAnimation(instance)` APIs also control this state.
 
-## Ovens: smoker UI with use animation
+## Ovens: smoker UI, open animation and active-burning variants
 
 ```yaml
 items:
@@ -68,6 +68,8 @@ items:
       furniture:
         animation:
           use: voxel:oven_open
+          active: voxel:oven_active
+          use_active: voxel:oven_open_active
         inventory:
           type: SMOKER
           title: '&fOven'
@@ -76,7 +78,39 @@ items:
     abstract: true
     render:
       model: voxel:furniture/kitchen/oven_open
+  oven_active:
+    extends: oven
+    abstract: true
+    render:
+      model: voxel:furniture/kitchen/oven_active
+  oven_open_active:
+    extends: oven_open
+    abstract: true
+    render:
+      model: voxel:furniture/kitchen/oven_open_active
 ```
+
+The two visual axes are independent:
+
+| Inventory | Fuel currently burning | Rendered model |
+|---|---|---|
+| Closed | No | `oven` |
+| Open | No | `oven_open` |
+| Closed | Yes | `oven_active` |
+| Open | Yes | `oven_open_active` |
+
+`animation.active` displays when the smoker's remaining burn ticks are positive;
+`animation.use_active` displays when it is both burning and open. The state
+updates as soon as fuel ignites or burns out, even if no inventory slots change
+and no players are viewing the inventory. The usual `animation.close_delay`
+still applies, including while burning.
+
+These options are optional for existing smokers. `animation.active` requires
+`inventory.type: SMOKER`; `animation.use_active` additionally requires
+`animation.use` and `animation.active`. If `animation.use_active` is
+omitted, an open smoker continues showing the ordinary `animation.use` model,
+even when lit. For dyeable model variants, each variant must override
+`render.rule.model.id` as well as `render.model`.
 
 `inventory.type: SMOKER` creates a native **3-slot smoker-shaped inventory**
 (input, fuel, output) on Minecraft 1.14+. Omit `size` (or specify 3).
