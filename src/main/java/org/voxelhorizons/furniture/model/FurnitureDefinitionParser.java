@@ -25,8 +25,8 @@ public final class FurnitureDefinitionParser {
     private static final Set<String> SCALE_KEYS = new HashSet<String>(Arrays.asList("x", "y", "z"));
     private static final Set<String> OFFSET_KEYS = new HashSet<String>(Arrays.asList("x", "y", "z", "rotation"));
     private static final Set<String> SEAT_KEYS = new HashSet<String>(Arrays.asList("x", "y", "z", "yaw"));
-    private static final Set<String> ANIMATION_KEYS = new HashSet<String>(Arrays.asList("use", "close_delay", "sync_neighbors"));
-    private static final Set<String> INVENTORY_KEYS = new HashSet<String>(Arrays.asList("size", "title"));
+    private static final Set<String> ANIMATION_KEYS = new HashSet<String>(Arrays.asList("use", "full", "toggle", "close_delay", "sync_neighbors"));
+    private static final Set<String> INVENTORY_KEYS = new HashSet<String>(Arrays.asList("size", "title", "type"));
     private static final Set<String> IDLE_KEYS = new HashSet<String>(Arrays.asList("bob", "spin"));
     private static final Set<String> BOB_KEYS = new HashSet<String>(Arrays.asList("amplitude", "period_ticks"));
     private static final Set<String> SPIN_KEYS = new HashSet<String>(Arrays.asList("degrees_per_tick"));
@@ -117,13 +117,29 @@ public final class FurnitureDefinitionParser {
         }
 
         ContentID animationUseModel = null;
+        ContentID animationFullModel = null;
+        ContentID animationToggleModel = null;
         int animationCloseDelay = 10;
         boolean animationSyncNeighbors = false;
         if (map.containsKey("animation")) {
             Map<?, ?> animation = nested(item, map.get("animation"), "animation");
             rejectUnknown(item, animation, ANIMATION_KEYS, "animation");
-            if (!animation.containsKey("use")) throw invalid(item, "animation requires use");
-            animationUseModel = contentId(item, animation.get("use"), item.id(), "animation.use");
+            if (animation.isEmpty() || (!animation.containsKey("use")
+                    && !animation.containsKey("full") && !animation.containsKey("toggle"))) {
+                throw invalid(item, "animation requires use, full or toggle");
+            }
+            if (animation.containsKey("use")) {
+                animationUseModel = requiredContentId(item, animation.get("use"), "animation.use");
+            }
+            if (animation.containsKey("full")) {
+                animationFullModel = requiredContentId(item, animation.get("full"), "animation.full");
+            }
+            if (animation.containsKey("toggle")) {
+                animationToggleModel = requiredContentId(item, animation.get("toggle"), "animation.toggle");
+            }
+            if (animationUseModel != null && animationToggleModel != null) {
+                throw invalid(item, "animation.use and animation.toggle cannot both be configured");
+            }
             animationCloseDelay = integer(item, animation.get("close_delay"), animationCloseDelay,
                     "animation.close_delay");
             if (animationCloseDelay < 0) throw invalid(item, "animation.close_delay cannot be negative");
@@ -242,6 +258,7 @@ public final class FurnitureDefinitionParser {
 
         int inventorySize = 0;
         String inventoryTitle = null;
+        String inventoryType = "CHEST";
         if (map.containsKey("inventory")) {
             Map<?, ?> inventory = nested(item, map.get("inventory"), "inventory");
             rejectUnknown(item, inventory, INVENTORY_KEYS, "inventory");
@@ -252,10 +269,25 @@ public final class FurnitureDefinitionParser {
                 }
                 inventoryTitle = (String) rawTitle;
             }
-            if (!inventory.containsKey("size")) throw invalid(item, "inventory requires size");
-            inventorySize = integer(item, inventory.get("size"), 0, "inventory.size");
-            if (inventorySize < 9 || inventorySize > 54 || inventorySize % 9 != 0) {
-                throw invalid(item, "inventory.size must be a multiple of 9 between 9 and 54");
+
+            Object configuredType = inventory.get("type");
+            if (configuredType != null) {
+                if (!(configuredType instanceof String)) throw invalid(item, "inventory.type must be a string");
+                inventoryType = ((String) configuredType).trim().toUpperCase(java.util.Locale.ROOT);
+            }
+            if ("CHEST".equals(inventoryType)) {
+                if (!inventory.containsKey("size")) throw invalid(item, "CHEST inventory requires size");
+                inventorySize = integer(item, inventory.get("size"), 0, "inventory.size");
+                if (inventorySize < 9 || inventorySize > 54 || inventorySize % 9 != 0) {
+                    throw invalid(item, "inventory.size must be a multiple of 9 between 9 and 54");
+                }
+            } else if ("SMOKER".equals(inventoryType)) {
+                inventorySize = 3;
+                if (inventory.containsKey("size") && integer(item, inventory.get("size"), 0, "inventory.size") != 3) {
+                    throw invalid(item, "SMOKER inventory has exactly 3 slots; omit size or set it to 3");
+                }
+            } else {
+                throw invalid(item, "Unsupported inventory.type '" + inventoryType + "' (CHEST or SMOKER)");
             }
         }
 
@@ -282,7 +314,8 @@ public final class FurnitureDefinitionParser {
                 hitboxOffsetX, hitboxOffsetY, hitboxOffsetZ,
                 scale[0], scale[1], scale[2], viewDistance, rotationStep, placement, seat,
                 x, y, z, offsetRotation, blocks, states, animationUseModel, animationCloseDelay,
-                animationSyncNeighbors, idleAnimation, displayParts, interactionCommands, inventorySize, inventoryTitle, highlight));
+                animationSyncNeighbors, idleAnimation, displayParts, interactionCommands, inventorySize, inventoryTitle,
+                highlight, animationFullModel, animationToggleModel, inventoryType));
     }
 
     static float[] scale(ItemDefinition item, Object raw) {
@@ -386,6 +419,13 @@ public final class FurnitureDefinitionParser {
             throw invalid(item, "blocks.material must be a non-air block material, got '" + name + "'");
         }
         return material;
+    }
+
+    private static ContentID requiredContentId(ItemDefinition item, Object raw, String field) {
+        if (!(raw instanceof String) || ((String) raw).trim().isEmpty()) {
+            throw invalid(item, field + " must be a nonempty content id");
+        }
+        return ContentID.parse((String) raw, item.id().namespace());
     }
 
     private static ContentID contentId(ItemDefinition item, Object raw, ContentID fallback, String field) {
