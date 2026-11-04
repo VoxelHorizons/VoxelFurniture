@@ -92,18 +92,24 @@ items:
 
 The two visual axes are independent:
 
-| Inventory | Fuel currently burning | Rendered model |
+| Inventory | Recipe can currently cook | Rendered model |
 |---|---|---|
 | Closed | No | `oven` |
 | Open | No | `oven_open` |
 | Closed | Yes | `oven_active` |
 | Open | Yes | `oven_open_active` |
 
-`animation.active` displays when the smoker's remaining burn ticks are positive;
-`animation.use_active` displays when it is both burning and open. The state
-updates as soon as fuel ignites or burns out, even if no inventory slots change
-and no players are viewing the inventory. The usual `animation.close_delay`
-still applies, including while burning.
+`animation.active` displays only when there is valid input, sufficient
+room in the output slot, a recognized smoker recipe and burning fuel.
+`animation.use_active` displays under those same conditions while the
+inventory is open. When the output fills, the input runs out or fuel expires,
+the active variant stops immediately. Clearing the output while fuel remains
+allows it to resume. The usual `animation.close_delay` still applies.
+
+**Fuel is a separate state from cookability.** Fuel can burn down even after
+the output fills, like a vanilla smoker. Its flame indicator continues to
+show remaining burn time, while the oven's active model stays inactive until
+cooking can proceed.
 
 These options are optional for existing smokers. `animation.active` requires
 `inventory.type: SMOKER`; `animation.use_active` additionally requires
@@ -122,8 +128,11 @@ according to `animation.close_delay`.
 
 A virtual inventory has no physical smoker block entity. VoxelFurniture runs
 registered smoking recipes and consumes fuel itself, and updates the open
-smoker's flame and cook-arrow indicators using Bukkit's public FurnaceView
-API. The oven's active models follow the same remaining fuel ticks.
+smoker's native flame and cook-arrow window data. Paper's public FurnaceView
+API may not have backing progress data for a virtual inventory, so compatible
+Minecraft server versions also use direct, built-in window-data updates
+(no ProtocolLib, PacketEvents or external packet dependencies).
+The flame follows remaining fuel; the active oven models follow cookability.
 Experience-orb behaviour is not implemented by the virtual block entity.
 Smoker fuel/cook progress resets on server restart, although stored items
 are retained.
