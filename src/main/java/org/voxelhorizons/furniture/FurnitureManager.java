@@ -487,10 +487,21 @@ public final class FurnitureManager {
                 processor = new FurnitureSmokerProcessor();
                 smokerProcessors.put(instance.id(), processor);
             }
-            if (!processor.tick(inventory)) continue;
-            FurnitureInstance updated = withInventoryContents(instance, inventory.getContents());
-            instances.put(updated.id(), updated);
-            refresh(updated, false);
+            boolean wasBurning = processor.isBurning();
+            boolean contentsChanged = processor.tick(inventory);
+            boolean burnStateChanged = wasBurning != processor.isBurning();
+            if (!contentsChanged && !burnStateChanged) continue;
+
+            FurnitureInstance updated = instance;
+            if (contentsChanged) {
+                updated = withInventoryContents(instance, inventory.getContents());
+                instances.put(updated.id(), updated);
+            }
+            // Refresh on ignition *and* on extinguishing, even when no inventory
+            // item changes. The in-place renderer keeps existing entity UUIDs.
+            if (burnStateChanged || (contentsChanged && definition.animationFullModel() != null)) {
+                refresh(updated, false);
+            }
             save();
         }
     }
@@ -1151,6 +1162,27 @@ public final class FurnitureManager {
                 if (!renderable(furniture.animationToggleModel())) throw new IllegalArgumentException("Furniture "
                         + furniture.itemId() + " references unrenderable animation.toggle model " + furniture.animationToggleModel());
             }
+            if (furniture.animationActiveModel() != null) {
+                if (!furniture.hasInventory() || !"SMOKER".equals(furniture.inventoryType())) {
+                    throw new IllegalArgumentException("Furniture " + furniture.itemId()
+                            + " requires inventory.type: SMOKER for animation.active");
+                }
+                if (!renderable(furniture.animationActiveModel())) {
+                    throw new IllegalArgumentException("Furniture " + furniture.itemId()
+                            + " references unrenderable animation.active model " + furniture.animationActiveModel());
+                }
+            }
+            if (furniture.animationUseActiveModel() != null) {
+                if (furniture.animationActiveModel() == null || furniture.animationUseModel() == null) {
+                    throw new IllegalArgumentException("Furniture " + furniture.itemId()
+                            + " requires animation.use and animation.active for animation.use_active");
+                }
+                if (!renderable(furniture.animationUseActiveModel())) {
+                    throw new IllegalArgumentException("Furniture " + furniture.itemId()
+                            + " references unrenderable animation.use_active model "
+                            + furniture.animationUseActiveModel());
+                }
+            }
             if ("SMOKER".equals(furniture.inventoryType())) {
                 try {
                     // 1.12 has InventoryType but no isCreatable() method. Only resolve
@@ -1249,8 +1281,11 @@ public final class FurnitureManager {
                     ? FurnitureAnimationSelection.isFull(instance.inventoryContents(), definition.inventorySize())
                     : FurnitureAnimationSelection.isFull(live.getContents(), definition.inventorySize());
         }
+        FurnitureSmokerProcessor processor = smokerProcessors.get(instance.id());
+        boolean burning = "SMOKER".equals(definition.inventoryType())
+                && processor != null && processor.isBurning();
         ContentID model = FurnitureAnimationSelection.model(definition, selected.model(),
-                inventoryOpen, full, instance.useAnimationActive());
+                inventoryOpen, full, instance.useAnimationActive(), burning);
         return model.equals(selected.model()) ? selected
                 : new FurnitureStateSelector.Selection(model, selected.yaw());
     }
