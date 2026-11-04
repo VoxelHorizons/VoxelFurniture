@@ -306,7 +306,7 @@ public final class FurnitureListener implements Listener {
     public void onSmokerClick(InventoryClickEvent event) {
         org.bukkit.inventory.Inventory top = event.getView().getTopInventory();
         if (!(top.getHolder() instanceof org.voxelhorizons.furniture.inventory.FurnitureInventoryHolder)
-                || top.getType() != org.bukkit.event.inventory.InventoryType.valueOf("SMOKER")) return;
+                || !"SMOKER".equals(top.getType().name())) return;
         // Custom inventories do not have a vanilla block entity enforcing the output slot.
         // Players may take cooked results but must never insert their own items there.
         if (event.getRawSlot() == 2 && event.getCursor() != null
