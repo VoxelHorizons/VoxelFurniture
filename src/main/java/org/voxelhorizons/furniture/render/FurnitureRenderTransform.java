@@ -6,6 +6,21 @@ public final class FurnitureRenderTransform {
     private FurnitureRenderTransform() {}
 
     /**
+     * Single authority for the main furniture model's world position. Both spawners
+     * and live-state reconciliation must use the SELECTED variant's own offsets.
+     */
+    public static Location modelLocation(Location origin, float yaw,
+                                         org.voxelhorizons.furniture.model.FurnitureDefinition visual,
+                                         org.voxelhorizons.furniture.model.FurnitureRendererType renderer) {
+        double y = visual.offsetY();
+        if (renderer == org.voxelhorizons.furniture.model.FurnitureRendererType.ARMOR_STAND) {
+            y -= 1.45D;
+        }
+        return applyLocalOffset(origin, yaw, visual.offsetX(), y, visual.offsetZ(),
+                visual.offsetRotation());
+    }
+
+    /**
      * Applies a furniture-local offset to a world location.
      *
      * X/Z rotate around the Y axis with the furniture yaw while Y remains
