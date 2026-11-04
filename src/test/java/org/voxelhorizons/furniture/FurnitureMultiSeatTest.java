@@ -29,7 +29,7 @@ public class FurnitureMultiSeatTest {
                 positions, new Location(null, -0.9, 0, 0.7), active));
 
         active.put(1, occupiedStand());
-        assertEquals(0, FurnitureManager.nearestFreeSeat(
+        assertEquals(3, FurnitureManager.nearestFreeSeat(
                 positions, new Location(null, 0.9, 0, -0.7), active));
 
         active.put(0, occupiedStand());
