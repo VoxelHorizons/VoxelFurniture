@@ -96,9 +96,13 @@ public final class FurnitureListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
     public void onCollisionInteract(PlayerInteractEvent event) {
-        if (event.getClickedBlock() == null) return;
-        // Showroom editors deliberately set useItemInHand=ALLOW to place on furniture.
-        if (event.useItemInHand() == org.bukkit.event.Event.Result.ALLOW) return;
+        if (event.getClickedBlock() == null || !mainHand(event.getHand())) return;
+        // ALLOW is also used for non-placement clicks by some plugins. Do not
+        // silently swallow a furniture block interaction unless a block item
+        // is actually being used for showroom/editor placement.
+        if (skipForExplicitBlockPlacement(
+                event.useItemInHand() == org.bukkit.event.Event.Result.ALLOW,
+                event.getItem() != null && event.getItem().getType().isBlock())) return;
         Optional<FurnitureInstance> instance = furniture.byBlock(event.getClickedBlock());
         if (!instance.isPresent()) return;
         FurnitureDefinition resolved = furniture.definition(instance.get().definitionId()).orElse(null);
@@ -123,6 +127,16 @@ public final class FurnitureListener implements Listener {
             event.setCancelled(true);
             interact(event.getPlayer(), instance.get());
         }
+    }
+
+    /** Prevent one physical click (main + off-hand) from toggling a model twice. */
+    static boolean mainHand(EquipmentSlot hand) {
+        return hand == null || hand == EquipmentSlot.HAND;
+    }
+
+    /** Explicit showroom placement must not mask ordinary furniture block clicks. */
+    static boolean skipForExplicitBlockPlacement(boolean itemUseAllowed, boolean holdingBlock) {
+        return itemUseAllowed && holdingBlock;
     }
 
     private boolean allowsBlockPlacement(Player player, ItemStack held, FurnitureDefinition definition) {
@@ -215,6 +229,7 @@ public final class FurnitureListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = false)
     public void onInteract(PlayerInteractEntityEvent event) {
+        if (!mainHand(event.getHand())) return;
         Optional<FurnitureInstance> instance = furniture.byEntity(event.getRightClicked().getUniqueId());
         if (!instance.isPresent()) return;
         FurnitureDefinition resolved = furniture.definition(instance.get().definitionId()).orElse(null);
