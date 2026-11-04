@@ -490,26 +490,26 @@ public final class FurnitureManager {
                 processor = new FurnitureSmokerProcessor();
                 smokerProcessors.put(instance.id(), processor);
             }
-            boolean wasBurning = processor.isBurning();
+            boolean wasCooking = processor.isCooking(inventory);
             boolean contentsChanged = processor.tick(inventory);
-            boolean burnStateChanged = wasBurning != processor.isBurning();
-            // Bukkit-created smoker inventories have no native block entity.
-            // Keep the flame/arrow progress visible even on ticks without item
-            // changes; players should see the same feedback as a real smoker.
+            boolean cookingStateChanged = wasCooking != processor.isCooking(inventory);
+
+            // The virtual inventory has no native smoker block to populate
+            // the fire and arrow data slots in the client-side menu.
             FurnitureSmokerViewUpdater.update(inventory, processor);
-            if (!contentsChanged && !burnStateChanged) continue;
+            if (!contentsChanged && !cookingStateChanged) continue;
 
             FurnitureInstance updated = instance;
             if (contentsChanged) {
                 updated = withInventoryContents(instance, inventory.getContents());
                 instances.put(updated.id(), updated);
             }
-            // Refresh on ignition *and* on extinguishing, even when no inventory
-            // item changes. The in-place renderer keeps existing entity UUIDs.
-            if (burnStateChanged || (contentsChanged && definition.animationFullModel() != null)) {
+            // Full outputs, emptied inputs and exhausted fuel all transition
+            // the active model back to idle without replacing its entity UUID.
+            if (cookingStateChanged || (contentsChanged && definition.animationFullModel() != null)) {
                 refresh(updated, false);
             }
-            save();
+            if (contentsChanged) save();
         }
     }
 
@@ -1339,10 +1339,11 @@ public final class FurnitureManager {
                     : FurnitureAnimationSelection.isFull(live.getContents(), definition.inventorySize());
         }
         FurnitureSmokerProcessor processor = smokerProcessors.get(instance.id());
-        boolean burning = "SMOKER".equals(definition.inventoryType())
-                && processor != null && processor.isBurning();
+        Inventory liveSmoker = smokerInventories.get(instance.id());
+        boolean cooking = "SMOKER".equals(definition.inventoryType())
+                && processor != null && processor.isCooking(liveSmoker);
         ContentID model = FurnitureAnimationSelection.model(definition, selected.model(),
-                inventoryOpen, full, instance.useAnimationActive(), burning);
+                inventoryOpen, full, instance.useAnimationActive(), cooking);
         return model.equals(selected.model()) ? selected
                 : new FurnitureStateSelector.Selection(model, selected.yaw());
     }
