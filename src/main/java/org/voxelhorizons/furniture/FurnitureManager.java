@@ -1127,9 +1127,9 @@ public final class FurnitureManager {
             }
             if ("SMOKER".equals(furniture.inventoryType())) {
                 try {
-                    if (!InventoryType.valueOf("SMOKER").isCreatable()) {
-                        throw new IllegalArgumentException("SMOKER inventories cannot be created on this server version");
-                    }
+                    // 1.12 has InventoryType but no isCreatable() method. Only resolve
+                    // the enum constant here so this binary remains cross-version safe.
+                    InventoryType.valueOf("SMOKER");
                 } catch (IllegalArgumentException exception) {
                     throw new IllegalArgumentException("Furniture " + furniture.itemId()
                             + " requires Minecraft 1.14+ for inventory.type: SMOKER", exception);
