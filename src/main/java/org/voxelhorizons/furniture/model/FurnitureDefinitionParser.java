@@ -303,6 +303,10 @@ public final class FurnitureDefinitionParser {
             }
         }
 
+        if (animationActiveModel != null && !"SMOKER".equals(inventoryType)) {
+            throw invalid(item, "animation.active requires inventory.type: SMOKER");
+        }
+
         double x = 0.0D;
         double y = 0.0D;
         double z = 0.0D;
