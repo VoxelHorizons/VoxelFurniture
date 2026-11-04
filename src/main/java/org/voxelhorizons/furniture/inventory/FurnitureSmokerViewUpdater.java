@@ -123,14 +123,25 @@ public final class FurnitureSmokerViewUpdater {
                     }
                 }
                 if (sendMethod == null) return false;
-                sendMethod.invoke(connection, PACKET.newInstance(containerId, 0, Math.max(0, burn)));
-                sendMethod.invoke(connection, PACKET.newInstance(containerId, 1, Math.max(1, burnTotal)));
-                sendMethod.invoke(connection, PACKET.newInstance(containerId, 2, Math.max(0, cook)));
-                sendMethod.invoke(connection, PACKET.newInstance(containerId, 3, Math.max(1, cookTotal)));
+                int[] values = windowData(burn, burnTotal, cook, cookTotal);
+                for (int property = 0; property < values.length; property++) {
+                    sendMethod.invoke(connection,
+                            PACKET.newInstance(containerId, property, values[property]));
+                }
                 return true;
             } catch (ReflectiveOperationException | RuntimeException exception) {
                 return false;
             }
+        }
+
+        /** Vanilla smoker/furnace window data slots 0..3, in protocol order. */
+        static int[] windowData(int burn, int burnTotal, int cook, int cookTotal) {
+            return new int[] {
+                    Math.max(0, burn),
+                    Math.max(1, burnTotal),
+                    Math.max(0, cook),
+                    Math.max(1, cookTotal)
+            };
         }
 
         private static Constructor<?> packetConstructor() {
