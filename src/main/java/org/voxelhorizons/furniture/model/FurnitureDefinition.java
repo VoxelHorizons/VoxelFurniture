@@ -30,12 +30,15 @@ public final class FurnitureDefinition {
     private final List<FurnitureBlockDefinition> blocks;
     private final List<FurnitureStateRule> states;
     private final ContentID animationUseModel;
+    private final ContentID animationFullModel;
+    private final ContentID animationToggleModel;
     private final int animationCloseDelay;
     private final boolean animationSyncNeighbors;
     private final FurnitureIdleAnimationDefinition idleAnimation;
     private final List<FurnitureDisplayPartDefinition> displayParts;
     private final List<FurnitureInteractionCommand> interactionCommands;
     private final int inventorySize;
+    private final String inventoryType;
     private final String inventoryTitle;
     private final FurnitureHighlightDefinition highlight;
 
@@ -218,6 +221,28 @@ public final class FurnitureDefinition {
                                List<FurnitureDisplayPartDefinition> displayParts,
                                List<FurnitureInteractionCommand> interactionCommands, int inventorySize,
                                String inventoryTitle, FurnitureHighlightDefinition highlight) {
+        this(itemId, modelItemId, dropItemId, renderer, width, height,
+                hitboxOffsetX, hitboxOffsetY, hitboxOffsetZ, scaleX, scaleY, scaleZ,
+                viewDistance, rotationStep, placement, seat, offsetX, offsetY, offsetZ, offsetRotation,
+                blocks, states, animationUseModel, animationCloseDelay, animationSyncNeighbors,
+                idleAnimation, displayParts, interactionCommands, inventorySize, inventoryTitle, highlight,
+                null, null, "CHEST");
+    }
+
+    public FurnitureDefinition(ContentID itemId, ContentID modelItemId, ContentID dropItemId,
+                               FurnitureRendererType renderer, float width, float height,
+                               double hitboxOffsetX, double hitboxOffsetY, double hitboxOffsetZ,
+                               float scaleX, float scaleY, float scaleZ,
+                               float viewDistance, float rotationStep, FurniturePlacement placement,
+                               FurnitureSeatDefinition seat,
+                               double offsetX, double offsetY, double offsetZ, float offsetRotation,
+                               List<FurnitureBlockDefinition> blocks, List<FurnitureStateRule> states,
+                               ContentID animationUseModel, int animationCloseDelay,
+                               boolean animationSyncNeighbors, FurnitureIdleAnimationDefinition idleAnimation,
+                               List<FurnitureDisplayPartDefinition> displayParts,
+                               List<FurnitureInteractionCommand> interactionCommands, int inventorySize,
+                               String inventoryTitle, FurnitureHighlightDefinition highlight,
+                               ContentID animationFullModel, ContentID animationToggleModel, String inventoryType) {
         this.itemId = itemId;
         this.modelItemId = modelItemId;
         this.dropItemId = dropItemId;
@@ -241,12 +266,15 @@ public final class FurnitureDefinition {
         this.blocks = Collections.unmodifiableList(new ArrayList<FurnitureBlockDefinition>(blocks));
         this.states = Collections.unmodifiableList(new ArrayList<FurnitureStateRule>(states));
         this.animationUseModel = animationUseModel;
+        this.animationFullModel = animationFullModel;
+        this.animationToggleModel = animationToggleModel;
         this.animationCloseDelay = animationCloseDelay;
         this.animationSyncNeighbors = animationSyncNeighbors;
         this.idleAnimation = idleAnimation;
         this.displayParts = Collections.unmodifiableList(new ArrayList<FurnitureDisplayPartDefinition>(displayParts));
         this.interactionCommands = Collections.unmodifiableList(new ArrayList<FurnitureInteractionCommand>(interactionCommands));
         this.inventorySize = inventorySize;
+        this.inventoryType = inventoryType;
         this.inventoryTitle = inventoryTitle;
         this.highlight = highlight;
     }
@@ -279,6 +307,8 @@ public final class FurnitureDefinition {
     public List<FurnitureBlockDefinition> blocks() { return blocks; }
     public List<FurnitureStateRule> states() { return states; }
     public ContentID animationUseModel() { return animationUseModel; }
+    public ContentID animationFullModel() { return animationFullModel; }
+    public ContentID animationToggleModel() { return animationToggleModel; }
     public int animationCloseDelay() { return animationCloseDelay; }
     public boolean animationSyncNeighbors() { return animationSyncNeighbors; }
     public FurnitureIdleAnimationDefinition idleAnimation() { return idleAnimation; }
@@ -286,6 +316,7 @@ public final class FurnitureDefinition {
     public List<FurnitureInteractionCommand> interactionCommands() { return interactionCommands; }
     public boolean hasInteractionCommands() { return !interactionCommands.isEmpty(); }
     public int inventorySize() { return inventorySize; }
+    public String inventoryType() { return inventoryType; }
     public String inventoryTitle() { return inventoryTitle; }
     public FurnitureHighlightDefinition highlight() { return highlight; }
     public boolean hasInventory() { return inventorySize > 0; }
