@@ -20,6 +20,14 @@ public final class FurnitureSmokerProcessor {
     private ItemStack previousInput;
     private Recipe cachedRecipe;
 
+    /**
+     * Match the vanilla lit-state semantics: fuel currently burning, even if
+     * there is no cookable ingredient or the output slot has become blocked.
+     */
+    public boolean isBurning() {
+        return burnTicks > 0;
+    }
+
     /** Call once per server tick. Returns true only when the inventory contents changed. */
     public boolean tick(Inventory inventory) {
         if (inventory == null || inventory.getSize() != 3) return false;
