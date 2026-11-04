@@ -40,6 +40,7 @@ import org.voxelhorizons.furniture.model.FurnitureStateRule;
 import org.voxelhorizons.furniture.render.EntitySupport;
 import org.voxelhorizons.furniture.render.FurnitureRenderer;
 import org.voxelhorizons.furniture.render.FurnitureRendererSelector;
+import org.voxelhorizons.furniture.render.FurnitureRendererUpdate;
 import org.voxelhorizons.furniture.render.FurnitureRenderTransform;
 import org.voxelhorizons.furniture.store.FurnitureStore;
 
@@ -817,9 +818,16 @@ public final class FurnitureManager {
         }
 
         List<UUID> replacement = Collections.emptyList();
+        boolean reused = false;
 
         try {
-            replacement = replacementRenderer.spawn(instance.location(), selected.yaw(), modelItem, visualDefinition);
+            FurnitureRendererUpdate.Result change = FurnitureRendererUpdate.apply(
+                    replacementRenderer, instance.entities(),
+                    replacementRenderer.type() == instance.renderer()
+                            && rendererEntitiesPresent(instance, visualDefinition),
+                    instance.location(), selected.yaw(), modelItem, visualDefinition);
+            replacement = change.entities();
+            reused = change.reused();
 
             List<FurnitureBlockPosition> finalBlocks = instance.blocks();
             if (!sameBlocks(instance.blocks(), desiredBlocks)) {
@@ -842,18 +850,16 @@ public final class FurnitureManager {
                     selected.model(), selected.yaw(), appliedSignature, instance.inventoryContents(), instance.dyeColor(),
                     instance.useAnimationActive());
 
-            // Remove the renderer that furniture.yml currently owns before
-            // replacing its UUIDs. If any historical renderer cannot be found
-            // now, it becomes an unreferenced tagged orphan and the chunk
-            // sweeper removes it as soon as that entity loads.
-            renderers.select(instance.renderer()).remove(instance.entities());
+            // Model animation changes retain the same display and interaction UUIDs.
+            // Only remove entities if a renderer type/part structure really changed.
+            if (!reused) renderers.select(instance.renderer()).remove(instance.entities());
             unindex(instance);
             instances.put(updated.id(), updated);
             index(updated);
             refreshSeat(updated, definition);
             return true;
         } catch (RuntimeException exception) {
-            replacementRenderer.remove(replacement);
+            if (!reused) replacementRenderer.remove(replacement);
             plugin.getLogger().warning("Unable to synchronize furniture " + instance.id() + " ("
                     + instance.definitionId() + "): " + exception.getMessage());
             return false;
@@ -1262,16 +1268,25 @@ public final class FurnitureManager {
             if (signature.equals(instance.renderSignature()) && renderer.type() == instance.renderer()
                     && rendererEntitiesPresent(instance, visualDefinition)
                     && rendererAtExpectedPosition(instance, visualDefinition, selected, renderer.type())) return;
-            List<UUID> replacement = renderer.spawn(instance.location(), selected.yaw(), modelItem, visualDefinition);
+            FurnitureRendererUpdate.Result change = FurnitureRendererUpdate.apply(
+                    renderer, instance.entities(),
+                    renderer.type() == instance.renderer()
+                            && rendererEntitiesPresent(instance, visualDefinition),
+                    instance.location(), selected.yaw(), modelItem, visualDefinition);
             FurnitureInstance updated = new FurnitureInstance(instance.id(), instance.definitionId(), instance.location(),
-                    instance.yaw(), renderer.type(), replacement, instance.blocks(), selected.model(), selected.yaw(),
+                    instance.yaw(), renderer.type(), change.entities(), instance.blocks(), selected.model(), selected.yaw(),
                     signature, instance.inventoryContents(), instance.dyeColor(), instance.useAnimationActive());
-            unindex(instance);
-            instances.put(updated.id(), updated);
-            index(updated);
-            renderers.select(instance.renderer()).remove(instance.entities());
+            if (!change.reused()) {
+                unindex(instance);
+                instances.put(updated.id(), updated);
+                index(updated);
+                renderers.select(instance.renderer()).remove(instance.entities());
+                cleanupOriginChunk(instance.location());
+            } else {
+                // Existing entity UUIDs and their look-up indices remain unchanged.
+                instances.put(updated.id(), updated);
+            }
             save();
-            cleanupOriginChunk(instance.location());
         } catch (RuntimeException exception) {
             Bukkit.getLogger().warning("Unable to update furniture state " + instance.id() + ": " + exception.getMessage());
         }
