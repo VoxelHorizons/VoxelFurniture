@@ -16,7 +16,9 @@ import java.lang.reflect.Method;
  */
 public final class FurnitureSmokerProcessor {
     private int burnTicks;
+    private int fuelDuration;
     private int cookingTicks;
+    private int cookingDuration = 100;
     private ItemStack previousInput;
     private Recipe cachedRecipe;
 
@@ -24,9 +26,11 @@ public final class FurnitureSmokerProcessor {
      * Match the vanilla lit-state semantics: fuel currently burning, even if
      * there is no cookable ingredient or the output slot has become blocked.
      */
-    public boolean isBurning() {
-        return burnTicks > 0;
-    }
+    public boolean isBurning() { return burnTicks > 0; }
+    public int remainingBurnTicks() { return burnTicks; }
+    public int fuelDuration() { return Math.max(1, fuelDuration); }
+    public int cookingTicks() { return cookingTicks; }
+    public int cookingDuration() { return Math.max(1, cookingDuration); }
 
     /** Call once per server tick. Returns true only when the inventory contents changed. */
     public boolean tick(Inventory inventory) {
@@ -41,13 +45,17 @@ public final class FurnitureSmokerProcessor {
             return false;
         }
 
-        if (previousInput == null || !previousInput.isSimilar(input)) {
+        // Re-evaluate the recipe whenever the ingredient changes or no recipe
+        // was previously found. Never cache a null result indefinitely, because
+        // data packs/plugins can register cooking recipes at runtime.
+        if (previousInput == null || !previousInput.isSimilar(input) || cachedRecipe == null) {
             previousInput = input.clone();
             cachedRecipe = smokingRecipe(input);
             cookingTicks = 0;
         }
 
         Recipe recipe = cachedRecipe;
+        cookingDuration = recipe == null ? 100 : cookingTime(recipe);
         if (recipe == null || !canAccept(inventory.getItem(2), recipe.getResult())) {
             cookingTicks = 0;
             return false;
@@ -59,6 +67,7 @@ public final class FurnitureSmokerProcessor {
             int ticks = fuelTicks(fuel);
             if (ticks <= 0) return false;
             burnTicks = ticks;
+            fuelDuration = ticks;
             if (fuel.getAmount() == 1) {
                 inventory.setItem(1, "LAVA_BUCKET".equals(fuel.getType().name())
                         ? new ItemStack(Material.valueOf("BUCKET")) : null);
@@ -71,7 +80,7 @@ public final class FurnitureSmokerProcessor {
         }
 
         cookingTicks++;
-        if (cookingTicks >= cookingTime(recipe)) {
+        if (cookingTicks >= cookingDuration) {
             ItemStack product = recipe.getResult().clone();
             ItemStack oldOutput = inventory.getItem(2);
             if (!empty(oldOutput)) {
@@ -141,19 +150,29 @@ public final class FurnitureSmokerProcessor {
         }
     }
 
-    private static boolean matches(Recipe recipe, ItemStack input) {
+    /**
+     * Match ingredients through the public Bukkit RecipeChoice API, not the
+     * implementation class (which may be inaccessible on a running server).
+     * This plugin compiles against 1.12, so both APIs are accessed reflectively.
+     */
+    static boolean matches(Recipe recipe, ItemStack input) {
         try {
             Object choice = recipe.getClass().getMethod("getInputChoice").invoke(recipe);
-            return choice != null && Boolean.TRUE.equals(
-                    choice.getClass().getMethod("test", ItemStack.class).invoke(choice, input));
-        } catch (NoSuchMethodException exception) {
-            try {
-                ItemStack ingredient = (ItemStack) recipe.getClass().getMethod("getInput").invoke(recipe);
-                return ingredient != null && ingredient.getType() == input.getType();
-            } catch (ReflectiveOperationException ignored) {
-                return false;
+            if (choice != null) {
+                Class<?> choiceApi = Class.forName("org.bukkit.inventory.RecipeChoice");
+                Object match = choiceApi.getMethod("test", ItemStack.class).invoke(choice, input);
+                return Boolean.TRUE.equals(match);
             }
+        } catch (ClassNotFoundException | NoSuchMethodException ignored) {
+            // RecipeChoice did not exist in 1.12. Fall back to ingredient type.
         } catch (IllegalAccessException | InvocationTargetException exception) {
+            // Do not silently fail every recipe on servers using implementation
+            // wrappers that restrict reflective access. Try getInput instead.
+        }
+        try {
+            ItemStack ingredient = (ItemStack) recipe.getClass().getMethod("getInput").invoke(recipe);
+            return ingredient != null && ingredient.getType() == input.getType();
+        } catch (ReflectiveOperationException ignored) {
             return false;
         }
     }
