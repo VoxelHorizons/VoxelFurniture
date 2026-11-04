@@ -43,9 +43,8 @@ public final class DisplayFurnitureRenderer implements FurnitureRenderer {
     public List<UUID> spawn(Location location, float yaw, ItemStack modelItem, FurnitureDefinition definition) {
         if (!supported()) throw new IllegalStateException("Display entities are unavailable on this server");
         List<UUID> entities = new ArrayList<UUID>(2 + definition.displayParts().size());
-        Location renderLocation = FurnitureRenderTransform.applyLocalOffset(
-                location, yaw, definition.offsetX(), definition.offsetY(), definition.offsetZ(),
-                definition.offsetRotation());
+        Location renderLocation = FurnitureRenderTransform.modelLocation(
+                location, yaw, definition, FurnitureRendererType.DISPLAY);
         Entity display = renderLocation.getWorld().spawnEntity(renderLocation, EntityType.valueOf("ITEM_DISPLAY"));
         entities.add(display.getUniqueId());
         try {
