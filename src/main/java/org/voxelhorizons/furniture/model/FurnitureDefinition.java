@@ -23,6 +23,7 @@ public final class FurnitureDefinition {
     private final float rotationStep;
     private final FurniturePlacement placement;
     private final FurnitureSeatDefinition seat;
+    private final List<FurnitureSeatDefinition> seats;
     private final double offsetX;
     private final double offsetY;
     private final double offsetZ;
@@ -268,6 +269,33 @@ public final class FurnitureDefinition {
                                String inventoryTitle, FurnitureHighlightDefinition highlight,
                                ContentID animationFullModel, ContentID animationToggleModel, String inventoryType,
                                ContentID animationActiveModel, ContentID animationUseActiveModel) {
+        this(itemId, modelItemId, dropItemId, renderer, width, height,
+                hitboxOffsetX, hitboxOffsetY, hitboxOffsetZ, scaleX, scaleY, scaleZ,
+                viewDistance, rotationStep, placement, seat, offsetX, offsetY, offsetZ, offsetRotation,
+                blocks, states, animationUseModel, animationCloseDelay, animationSyncNeighbors,
+                idleAnimation, displayParts, interactionCommands, inventorySize, inventoryTitle, highlight,
+                animationFullModel, animationToggleModel, inventoryType, animationActiveModel,
+                animationUseActiveModel, seat == null
+                        ? Collections.<FurnitureSeatDefinition>emptyList()
+                        : Collections.singletonList(seat));
+    }
+
+    public FurnitureDefinition(ContentID itemId, ContentID modelItemId, ContentID dropItemId,
+                               FurnitureRendererType renderer, float width, float height,
+                               double hitboxOffsetX, double hitboxOffsetY, double hitboxOffsetZ,
+                               float scaleX, float scaleY, float scaleZ,
+                               float viewDistance, float rotationStep, FurniturePlacement placement,
+                               FurnitureSeatDefinition seat,
+                               double offsetX, double offsetY, double offsetZ, float offsetRotation,
+                               List<FurnitureBlockDefinition> blocks, List<FurnitureStateRule> states,
+                               ContentID animationUseModel, int animationCloseDelay,
+                               boolean animationSyncNeighbors, FurnitureIdleAnimationDefinition idleAnimation,
+                               List<FurnitureDisplayPartDefinition> displayParts,
+                               List<FurnitureInteractionCommand> interactionCommands, int inventorySize,
+                               String inventoryTitle, FurnitureHighlightDefinition highlight,
+                               ContentID animationFullModel, ContentID animationToggleModel, String inventoryType,
+                               ContentID animationActiveModel, ContentID animationUseActiveModel,
+                               List<FurnitureSeatDefinition> seats) {
         this.itemId = itemId;
         this.modelItemId = modelItemId;
         this.dropItemId = dropItemId;
@@ -283,7 +311,8 @@ public final class FurnitureDefinition {
         this.viewDistance = viewDistance;
         this.rotationStep = rotationStep;
         this.placement = placement;
-        this.seat = seat;
+        this.seats = Collections.unmodifiableList(new ArrayList<FurnitureSeatDefinition>(seats));
+        this.seat = this.seats.isEmpty() ? null : this.seats.get(0);
         this.offsetX = offsetX;
         this.offsetY = offsetY;
         this.offsetZ = offsetZ;
@@ -326,7 +355,10 @@ public final class FurnitureDefinition {
     public float viewDistance() { return viewDistance; }
     public float rotationStep() { return rotationStep; }
     public FurniturePlacement placement() { return placement; }
+    /** Backwards-compatible primary seat (the first configured seat). */
     public FurnitureSeatDefinition seat() { return seat; }
+    /** Every independent seat on this furniture instance, in configured order. */
+    public List<FurnitureSeatDefinition> seats() { return seats; }
     public double offsetX() { return offsetX; }
     public double offsetY() { return offsetY; }
     public double offsetZ() { return offsetZ; }
