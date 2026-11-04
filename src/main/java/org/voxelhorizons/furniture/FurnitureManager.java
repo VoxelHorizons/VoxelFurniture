@@ -421,6 +421,10 @@ public final class FurnitureManager {
         }
         pendingInventoryCloses.remove(instance.id());
         player.openInventory(inventory);
+        if ("SMOKER".equals(definition.inventoryType())) {
+            FurnitureSmokerProcessor processor = smokerProcessors.get(instance.id());
+            if (processor != null) FurnitureSmokerViewUpdater.update(inventory, processor);
+        }
         return true;
     }
 
@@ -496,7 +500,11 @@ public final class FurnitureManager {
 
             // The virtual inventory has no native smoker block to populate
             // the fire and arrow data slots in the client-side menu.
-            FurnitureSmokerViewUpdater.update(inventory, processor);
+            // Ten GUI updates/second provide smooth progress without sending
+            // four container properties to every viewer on every server tick.
+            if ((animationTick & 1L) == 0L) {
+                FurnitureSmokerViewUpdater.update(inventory, processor);
+            }
             if (!contentsChanged && !cookingStateChanged) continue;
 
             FurnitureInstance updated = instance;
