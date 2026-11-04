@@ -120,9 +120,13 @@ furniture's origin chunk remains loaded. Its inventory contents are persisted.
 The `animation.use` model displays while the inventory is open, and closes
 according to `animation.close_delay`.
 
-A virtual inventory has no physical smoker block entity: cooking progress/flame
-meters and experience-orb behaviour are not provided by a block entity. Smoker
-fuel/cook progress resets on server restart, although stored items are retained.
+A virtual inventory has no physical smoker block entity. VoxelFurniture runs
+registered smoking recipes and consumes fuel itself, and updates the open
+smoker's flame and cook-arrow indicators using Bukkit's public FurnaceView
+API. The oven's active models follow the same remaining fuel ticks.
+Experience-orb behaviour is not implemented by the virtual block entity.
+Smoker fuel/cook progress resets on server restart, although stored items
+are retained.
 
 ## Compatibility
 
