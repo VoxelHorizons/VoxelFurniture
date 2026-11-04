@@ -16,8 +16,22 @@ public final class FurnitureAnimationSelection {
      */
     public static ContentID model(FurnitureDefinition definition, ContentID idle,
                                   boolean inventoryOpen, boolean full, boolean toggled) {
+        return model(definition, idle, inventoryOpen, full, toggled, false);
+    }
+
+    /**
+     * Burning and inventory openness form two independent axes for smoker furniture.
+     * A burner can remain lit after food is removed while its current fuel lasts.
+     * Full-bin precedence and non-inventory toggle behaviour remain unchanged.
+     */
+    public static ContentID model(FurnitureDefinition definition, ContentID idle,
+                                  boolean inventoryOpen, boolean full, boolean toggled,
+                                  boolean burning) {
         if (full && definition.animationFullModel() != null) return definition.animationFullModel();
+        if (burning && inventoryOpen && definition.animationUseActiveModel() != null)
+            return definition.animationUseActiveModel();
         if (inventoryOpen && definition.animationUseModel() != null) return definition.animationUseModel();
+        if (burning && definition.animationActiveModel() != null) return definition.animationActiveModel();
         if (toggled && definition.animationToggleModel() != null) return definition.animationToggleModel();
         if (toggled && !definition.hasInventory() && definition.animationUseModel() != null)
             return definition.animationUseModel();
