@@ -714,7 +714,8 @@ public final class FurnitureManager {
                 visualDefinition, selected, replacementRenderer.type(), desiredBlocks, modelItem);
 
         if (!force && desiredSignature.equals(instance.renderSignature())
-                && rendererEntitiesPresent(instance, visualDefinition)) {
+                && rendererEntitiesPresent(instance, visualDefinition)
+                && rendererAtExpectedPosition(instance, visualDefinition, selected, replacementRenderer.type())) {
             refreshSeat(instance, definition);
             return true;
         }
@@ -772,6 +773,32 @@ public final class FurnitureManager {
             if (entity == null || !entity.getScoreboardTags().contains("voxelfurniture")) return false;
         }
         return true;
+    }
+
+    /**
+     * A matching render signature is insufficient if the actual model entity is still
+     * at an earlier animation state's position (or was moved externally). Make offset
+     * correctness part of the no-op decision, not just the model/item signature.
+     */
+    private boolean rendererAtExpectedPosition(FurnitureInstance instance, FurnitureDefinition visual,
+                                               FurnitureStateSelector.Selection selected,
+                                               org.voxelhorizons.furniture.model.FurnitureRendererType type) {
+        // Idle bobbing deliberately moves the main entity away from its resting pose.
+        if (visual.idleAnimation() != null && visual.idleAnimation().enabled()) return true;
+        Location expected = FurnitureRenderTransform.modelLocation(instance.location(), selected.yaw(), visual, type);
+        for (UUID id : instance.entities()) {
+            Entity entity = EntitySupport.find(id);
+            if (entity == null) return false;
+            if (type != org.voxelhorizons.furniture.model.FurnitureRendererType.ARMOR_STAND
+                    && !entity.getScoreboardTags().contains("voxelfurniture-main")) continue;
+            Location actual = entity.getLocation();
+            if (!expected.getWorld().equals(actual.getWorld())) return false;
+            double dx = actual.getX() - expected.getX();
+            double dy = actual.getY() - expected.getY();
+            double dz = actual.getZ() - expected.getZ();
+            return dx * dx + dy * dy + dz * dz <= 0.000001D;
+        }
+        return false;
     }
 
     private String renderSignature(FurnitureDefinition definition, FurnitureStateSelector.Selection selected,
@@ -1102,7 +1129,8 @@ public final class FurnitureManager {
         boolean animated = definition.animationUseModel() != null
                 && (openInventories.containsKey(instance.id())
                 || (!definition.hasInventory() && instance.useAnimationActive()));
-        if (definition.states().isEmpty() && !animated && definition.modelItemId().equals(instance.renderedModel())) return;
+        // Never skip offset/transform reconciliation merely because the model ID is unchanged.
+        // Visual pose may change while the same model remains selected.
         FurnitureStateSelector.Selection selected = selection(definition, instance);
         FurnitureDefinition visualDefinition = renderDefinition(selected.model(), definition);
         FurnitureRenderer renderer = renderers.select(visualDefinition.renderer());
@@ -1110,7 +1138,8 @@ public final class FurnitureManager {
             ItemStack modelItem = renderItem(selected.model(), instance.dyeColor());
             String signature = renderSignature(visualDefinition, selected, renderer.type(), instance.blocks(), modelItem);
             if (signature.equals(instance.renderSignature()) && renderer.type() == instance.renderer()
-                    && rendererEntitiesPresent(instance, visualDefinition)) return;
+                    && rendererEntitiesPresent(instance, visualDefinition)
+                    && rendererAtExpectedPosition(instance, visualDefinition, selected, renderer.type())) return;
             List<UUID> replacement = renderer.spawn(instance.location(), selected.yaw(), modelItem, visualDefinition);
             FurnitureInstance updated = new FurnitureInstance(instance.id(), instance.definitionId(), instance.location(),
                     instance.yaw(), renderer.type(), replacement, instance.blocks(), selected.model(), selected.yaw(),
