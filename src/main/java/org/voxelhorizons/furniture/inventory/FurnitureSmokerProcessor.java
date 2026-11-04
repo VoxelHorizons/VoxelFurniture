@@ -114,10 +114,18 @@ public final class FurnitureSmokerProcessor {
 
     private static Recipe smokingRecipe(ItemStack input) {
         for (Recipe candidate : Bukkit.getRecipesFor(input)) {
-            if (!"SmokingRecipe".equals(candidate.getClass().getSimpleName())) continue;
+            if (!isSmokingRecipe(candidate)) continue;
             if (matches(candidate, input)) return candidate;
         }
         return null;
+    }
+
+    private static boolean isSmokingRecipe(Recipe recipe) {
+        try {
+            return Class.forName("org.bukkit.inventory.SmokingRecipe").isInstance(recipe);
+        } catch (ClassNotFoundException ignored) {
+            return false;
+        }
     }
 
     private static boolean matches(Recipe recipe, ItemStack input) {
