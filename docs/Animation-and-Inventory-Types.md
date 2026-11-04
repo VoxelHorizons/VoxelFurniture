@@ -128,6 +128,38 @@ Experience-orb behaviour is not implemented by the virtual block entity.
 Smoker fuel/cook progress resets on server restart, although stored items
 are retained.
 
+## Picnic tables: multiple independent seats
+
+Furniture still supports its existing single-seat `seat: {x, y, z, yaw}` configuration.
+For a multi-seat picnic table, replace `seat` with a `seats` list:
+
+```yaml
+items:
+  oak_picnic_table:
+    material: OAK_PLANKS
+    render:
+      model: voxel:furniture/camp/oak_picnic_table
+    properties:
+      furniture:
+        renderer: auto
+        placement: TOP
+        scale: 3.0
+        seats:
+          - {x: -0.75, y: -1.1, z: -0.65, yaw: 0}
+          - {x:  0.75, y: -1.1, z: -0.65, yaw: 0}
+          - {x: -0.75, y: -1.1, z:  0.65, yaw: 180}
+          - {x:  0.75, y: -1.1, z:  0.65, yaw: 180}
+```
+
+Each seat uses furniture-local offsets rotated with furniture yaw, not world axes.
+The chosen seat is the nearest *unoccupied* anchor to the player when they
+right-click the furniture's hitbox or any of its owned blocks. Multiple
+players can sit at the same table; occupied seats are excluded.
+Seats are cleaned up on dismount, furniture destruction and plugin shutdown.
+These offsets are initial alignment values and may need adjustment for the
+geometry and scale of each individual furniture model. `seat` and `seats`
+cannot be combined; a `seats` list may contain up to 16 entries.
+
 ## Compatibility
 
 - `inventory.type` defaults to `CHEST` for existing content; these inventories
