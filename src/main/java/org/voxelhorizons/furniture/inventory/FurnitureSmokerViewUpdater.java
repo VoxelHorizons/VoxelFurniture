@@ -1,22 +1,29 @@
 package org.voxelhorizons.furniture.inventory;
 
+import org.bukkit.Bukkit;
 import org.bukkit.entity.HumanEntity;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryView;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 
 /**
- * Keeps the vanilla smoker's flame and arrow progress synchronized for
- * inventories with no physical block entity. Uses the public FurnaceView API
- * (available on modern servers) without depending on NMS or packet plugins.
+ * Drives the native smoker's flame and cooking-arrow progress for furniture.
  *
- * Reflection is necessary because this plugin also builds against Bukkit 1.12,
- * which has no FurnaceView interface or smoker.
+ * Bukkit.createInventory(SMOKER) creates a virtual menu with no block entity.
+ * Setting the block-entity progress through FurnaceView/setProperty is therefore
+ * not sufficient on all Paper builds. The normal Minecraft window data is sent
+ * to the already-open player container, without adding a packet plugin.
+ *
+ * The reflective bridge only runs on the primary thread and uses Mojang-mapped
+ * server classes; older CraftBukkit servers retain the public API fallback.
  */
 public final class FurnitureSmokerViewUpdater {
+    private static boolean warned;
     private FurnitureSmokerViewUpdater() {}
 
     public static void update(Inventory inventory, FurnitureSmokerProcessor processor) {
@@ -30,12 +37,21 @@ public final class FurnitureSmokerViewUpdater {
         for (HumanEntity viewer : new ArrayList<HumanEntity>(inventory.getViewers())) {
             InventoryView view = viewer.getOpenInventory();
             if (view == null) continue;
-            // Some server versions wrap the same backing inventory in a
-            // different Inventory object for the view.
             Inventory shown = view.getTopInventory();
             if (shown != inventory && (shown == null
                     || shown.getHolder() != inventory.getHolder())) continue;
-            setProgress(view, burning, fuelDuration, cooking, cookingDuration);
+
+            // The protocol's data-slot values are raw ticks, not a 0..1 ratio.
+            // Send to the actual open container id so the client animates the
+            // vanilla flame and arrow even though there is no furnace tile.
+            if (NativeProgress.send(viewer, burning, fuelDuration, cooking, cookingDuration)) continue;
+
+            // Older servers may support the public view-property API instead.
+            if (!setProgress(view, burning, fuelDuration, cooking, cookingDuration) && !warned) {
+                warned = true;
+                Bukkit.getLogger().warning("[VoxelFurniture] This server did not accept native or Bukkit "
+                        + "smoker progress updates; the GUI may not display flame/arrow animations.");
+            }
         }
     }
 
@@ -51,12 +67,10 @@ public final class FurnitureSmokerViewUpdater {
                 return true;
             }
         } catch (ClassNotFoundException | NoSuchMethodException ignored) {
-            // Legacy Bukkit versions used InventoryView.Property instead.
+            // Legacy Bukkit versions used InventoryView.Property.
         } catch (IllegalAccessException | InvocationTargetException exception) {
-            // If a server implementation declines FurnaceView progress, fall
-            // back to the older public inventory property API.
+            // Fall back to the public inventory-property API.
         }
-
         return legacyProgress(view, burn, burnTotal, cook, cookTotal);
     }
 
@@ -78,6 +92,68 @@ public final class FurnitureSmokerViewUpdater {
             return ok;
         } catch (ReflectiveOperationException | IllegalArgumentException exception) {
             return false;
+        }
+    }
+
+    /**
+     * A Minecraft smoker menu has four integer properties:
+     * 0: burn remaining, 1: maximum burn, 2: cook progress, 3: cook duration.
+     * Use the open player's real container id; do not create or replace a menu.
+     */
+    static final class NativeProgress {
+        private static final Constructor<?> PACKET = packetConstructor();
+
+        private NativeProgress() {}
+
+        static boolean send(HumanEntity viewer, int burn, int burnTotal, int cook, int cookTotal) {
+            if (PACKET == null) return false;
+            try {
+                Object serverPlayer = viewer.getClass().getMethod("getHandle").invoke(viewer);
+                Object menu = readField(serverPlayer, "containerMenu");
+                int containerId = ((Number) readField(menu, "containerId")).intValue();
+                if (containerId <= 0) return false;
+
+                Object connection = readField(serverPlayer, "connection");
+                Method sendMethod = null;
+                for (Method candidate : connection.getClass().getMethods()) {
+                    if (!candidate.getName().equals("send") || candidate.getParameterTypes().length != 1) continue;
+                    if (candidate.getParameterTypes()[0].isAssignableFrom(PACKET.getDeclaringClass())) {
+                        sendMethod = candidate;
+                        break;
+                    }
+                }
+                if (sendMethod == null) return false;
+                sendMethod.invoke(connection, PACKET.newInstance(containerId, 0, Math.max(0, burn)));
+                sendMethod.invoke(connection, PACKET.newInstance(containerId, 1, Math.max(1, burnTotal)));
+                sendMethod.invoke(connection, PACKET.newInstance(containerId, 2, Math.max(0, cook)));
+                sendMethod.invoke(connection, PACKET.newInstance(containerId, 3, Math.max(1, cookTotal)));
+                return true;
+            } catch (ReflectiveOperationException | RuntimeException exception) {
+                return false;
+            }
+        }
+
+        private static Constructor<?> packetConstructor() {
+            try {
+                Class<?> packet = Class.forName(
+                        "net.minecraft.network.protocol.game.ClientboundContainerSetDataPacket");
+                return packet.getConstructor(int.class, int.class, int.class);
+            } catch (ReflectiveOperationException exception) {
+                return null;
+            }
+        }
+
+        private static Object readField(Object target, String name) throws ReflectiveOperationException {
+            for (Class<?> type = target.getClass(); type != null; type = type.getSuperclass()) {
+                try {
+                    Field field = type.getDeclaredField(name);
+                    field.setAccessible(true);
+                    return field.get(target);
+                } catch (NoSuchFieldException ignored) {
+                    // NMS player fields can be declared in a superclass.
+                }
+            }
+            throw new NoSuchFieldException(name);
         }
     }
 }
