@@ -24,6 +24,7 @@ import org.voxelhorizons.furniture.event.FurnitureBreakEvent;
 import org.voxelhorizons.furniture.event.FurniturePlaceEvent;
 import org.voxelhorizons.furniture.inventory.FurnitureInventoryHolder;
 import org.voxelhorizons.furniture.inventory.FurnitureSmokerProcessor;
+import org.voxelhorizons.furniture.inventory.FurnitureSmokerViewUpdater;
 import org.voxelhorizons.furniture.model.FurnitureAnimationSelection;
 import org.voxelhorizons.furniture.model.FurnitureDefinition;
 import org.voxelhorizons.furniture.model.FurnitureValues;
@@ -490,6 +491,10 @@ public final class FurnitureManager {
             boolean wasBurning = processor.isBurning();
             boolean contentsChanged = processor.tick(inventory);
             boolean burnStateChanged = wasBurning != processor.isBurning();
+            // Bukkit-created smoker inventories have no native block entity.
+            // Keep the flame/arrow progress visible even on ticks without item
+            // changes; players should see the same feedback as a real smoker.
+            FurnitureSmokerViewUpdater.update(inventory, processor);
             if (!contentsChanged && !burnStateChanged) continue;
 
             FurnitureInstance updated = instance;
