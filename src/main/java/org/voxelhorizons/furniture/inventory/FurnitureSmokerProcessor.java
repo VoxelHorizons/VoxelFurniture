@@ -15,12 +15,32 @@ import java.lang.reflect.Method;
  * State is per furniture instance, and the owning manager persists inventory changes.
  */
 public final class FurnitureSmokerProcessor {
+    /** Indirection permits testing actual cooking without a running Bukkit server. */
+    public interface RecipeFinder {
+        Recipe find(ItemStack input);
+    }
+
+    private final RecipeFinder recipeFinder;
     private int burnTicks;
     private int fuelDuration;
     private int cookingTicks;
     private int cookingDuration = 100;
     private ItemStack previousInput;
     private Recipe cachedRecipe;
+    private int missingRecipeCooldown;
+
+    public FurnitureSmokerProcessor() {
+        this(new RecipeFinder() {
+            @Override public Recipe find(ItemStack input) {
+                return smokingRecipe(input);
+            }
+        });
+    }
+
+    public FurnitureSmokerProcessor(RecipeFinder finder) {
+        if (finder == null) throw new IllegalArgumentException("Recipe finder cannot be null");
+        this.recipeFinder = finder;
+    }
 
     /**
      * Match the vanilla lit-state semantics: fuel currently burning, even if
@@ -42,16 +62,21 @@ public final class FurnitureSmokerProcessor {
             cookingTicks = 0;
             previousInput = null;
             cachedRecipe = null;
+            missingRecipeCooldown = 0;
             return false;
         }
 
-        // Re-evaluate the recipe whenever the ingredient changes or no recipe
-        // was previously found. Never cache a null result indefinitely, because
-        // data packs/plugins can register cooking recipes at runtime.
-        if (previousInput == null || !previousInput.isSimilar(input) || cachedRecipe == null) {
+        // Re-evaluate whenever the ingredient changes. Retry missing recipes
+        // once per second to pick up data-pack registrations, not every tick.
+        if (previousInput == null || !previousInput.isSimilar(input)) {
             previousInput = input.clone();
-            cachedRecipe = smokingRecipe(input);
+            cachedRecipe = null;
+            missingRecipeCooldown = 0;
             cookingTicks = 0;
+        }
+        if (cachedRecipe == null && missingRecipeCooldown-- <= 0) {
+            cachedRecipe = recipeFinder.find(input);
+            missingRecipeCooldown = 20;
         }
 
         Recipe recipe = cachedRecipe;
