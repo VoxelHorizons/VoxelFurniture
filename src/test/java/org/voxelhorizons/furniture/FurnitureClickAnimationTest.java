@@ -30,6 +30,18 @@ public class FurnitureClickAnimationTest {
         assertTrue(FurnitureListener.skipForExplicitBlockPlacement(true, true));
     }
 
+    @Test public void blockAndHitboxClicksFromSamePlayerOnlyToggleOncePerTick() {
+        FurnitureInteractionGuard guard = new FurnitureInteractionGuard();
+        UUID player = UUID.randomUUID();
+        UUID furniture = UUID.randomUUID();
+        assertTrue(guard.accept(player, furniture));
+        assertFalse("hitbox event must not undo the block click", guard.accept(player, furniture));
+        assertTrue("other furniture can still be clicked", guard.accept(player, UUID.randomUUID()));
+        assertTrue("other players can still interact", guard.accept(UUID.randomUUID(), furniture));
+        guard.reset();
+        assertTrue("next server tick must permit another click", guard.accept(player, furniture));
+    }
+
     @Test public void animationModelChangesKeepRendererAndHitboxEntityIds() {
         StubRenderer renderer = new StubRenderer(true);
         List<UUID> existing = Arrays.asList(UUID.randomUUID(), UUID.randomUUID());
