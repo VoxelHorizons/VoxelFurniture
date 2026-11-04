@@ -47,6 +47,20 @@ public final class FurnitureSmokerProcessor {
      * there is no cookable ingredient or the output slot has become blocked.
      */
     public boolean isBurning() { return burnTicks > 0; }
+
+    /**
+     * Distinct from fuel burning: no cooking is possible when the input is
+     * absent, its recipe is unavailable, or the output cannot fit another
+     * completed result. The oven's active model follows this state.
+     */
+    public boolean isCooking(Inventory inventory) {
+        if (inventory == null || inventory.getSize() != 3 || burnTicks <= 0
+                || cachedRecipe == null || previousInput == null) return false;
+        ItemStack input = inventory.getItem(0);
+        return !empty(input) && previousInput.isSimilar(input)
+                && canAccept(inventory.getItem(2), cachedRecipe.getResult());
+    }
+
     public int remainingBurnTicks() { return burnTicks; }
     public int fuelDuration() { return Math.max(1, fuelDuration); }
     public int cookingTicks() { return cookingTicks; }
