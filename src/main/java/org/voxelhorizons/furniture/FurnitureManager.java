@@ -75,6 +75,7 @@ public final class FurnitureManager {
     private final Map<UUID, ArmorStand> seats = new LinkedHashMap<UUID, ArmorStand>();
     private final Map<UUID, Inventory> openInventories = new LinkedHashMap<UUID, Inventory>();
     // Smoker inventories and cooking sessions persist after the UI closes.
+    private final Set<UUID> smokerIds = new HashSet<UUID>();
     private final Map<UUID, Inventory> smokerInventories = new LinkedHashMap<UUID, Inventory>();
     private final Map<UUID, FurnitureSmokerProcessor> smokerProcessors =
             new LinkedHashMap<UUID, FurnitureSmokerProcessor>();
@@ -103,6 +104,7 @@ public final class FurnitureManager {
         this.pendingSynchronization.addAll(this.instances.keySet());
         this.contentRevision = core.getContentRuntime().current().revision();
         rebuildIndex();
+        rebuildSmokerIndex();
         plugin.getServer().getScheduler().runTaskTimer(plugin, new Runnable() {
             @Override public void run() {
                 cleanupSeats();
@@ -226,6 +228,7 @@ public final class FurnitureManager {
                     renderer.type(), entities, collisionBlocks, state.model(), state.yaw(), signature,
                     Collections.<ItemStack>emptyList(), dyeColor, false);
             instances.put(instance.id(), instance);
+            if ("SMOKER".equals(definition.inventoryType())) smokerIds.add(instance.id());
             index(instance);
             save();
             refreshAround(location);
@@ -233,6 +236,7 @@ public final class FurnitureManager {
         } catch (RuntimeException exception) {
             if (instance != null) {
                 instances.remove(instance.id());
+                smokerIds.remove(instance.id());
                 unindex(instance);
             }
             renderer.remove(entities);
@@ -251,6 +255,7 @@ public final class FurnitureManager {
         renderers.select(instance.renderer()).remove(instance.entities());
         removeBlocks(instance.location().getWorld(), instance.blocks());
         instances.remove(instance.id());
+        smokerIds.remove(instance.id());
         pendingSynchronization.remove(instance.id());
         forcedSynchronization.remove(instance.id());
         unindex(instance);
@@ -370,6 +375,7 @@ public final class FurnitureManager {
         if (instance == null) return false;
         instance = sealInventory(instance);
         instances.remove(instanceId);
+        smokerIds.remove(instanceId);
         pendingSynchronization.remove(instance.id());
         forcedSynchronization.remove(instance.id());
         removeSeat(instance.id());
@@ -451,11 +457,23 @@ public final class FurnitureManager {
         });
     }
 
-    private void tickSmokers() {
-        for (FurnitureInstance instance : new ArrayList<FurnitureInstance>(instances.values())) {
+    private void rebuildSmokerIndex() {
+        smokerIds.clear();
+        for (FurnitureInstance instance : instances.values()) {
             FurnitureDefinition definition = definition(instance.definitionId()).orElse(null);
-            if (definition == null || !"SMOKER".equals(definition.inventoryType())
-                    || !isOriginChunkLoaded(instance)) continue;
+            if (definition != null && "SMOKER".equals(definition.inventoryType())) smokerIds.add(instance.id());
+        }
+        smokerInventories.keySet().retainAll(smokerIds);
+        smokerProcessors.keySet().retainAll(smokerIds);
+    }
+
+    private void tickSmokers() {
+        // Only tick actual smoker furniture, not every placed display or seat on the server.
+        for (UUID id : new ArrayList<UUID>(smokerIds)) {
+            FurnitureInstance instance = instances.get(id);
+            if (instance == null || !isOriginChunkLoaded(instance)) continue;
+            FurnitureDefinition definition = definition(instance.definitionId()).orElse(null);
+            if (definition == null || !"SMOKER".equals(definition.inventoryType())) continue;
             Inventory inventory = smokerInventories.get(instance.id());
             if (inventory == null) {
                 if (instance.inventoryContents().isEmpty()) continue;
@@ -682,6 +700,7 @@ public final class FurnitureManager {
 
         try {
             validateDefinitions();
+            rebuildSmokerIndex();
             pendingSynchronization.addAll(instances.keySet());
             forcedSynchronization.addAll(instances.keySet());
             synchronizePendingLoaded();
