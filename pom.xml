@@ -6,7 +6,7 @@
 
     <groupId>org.voxelhorizons</groupId>
     <artifactId>VoxelFurniture</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.1</version>
     <packaging>jar</packaging>
 
     <name>VoxelFurniture</name>
@@ -15,7 +15,7 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.release>8</maven.compiler.release>
-        <voxelcore.version>1.0.0</voxelcore.version>
+        <voxelcore.version>1.0.1</voxelcore.version>
         <spigot.version>1.12.2-R0.1-SNAPSHOT</spigot.version>
         <junit.version>4.13.2</junit.version>
     </properties>
