@@ -21,7 +21,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: VoxelHorizons/VoxelCore
-          ref: 0da63813d9273fa340f566eea924d248a3f57e31 # VoxelCore v1.0.0 release commit
+          ref: v1.0.1 # VoxelCore v1.0.1 release tag
           path: VoxelCore
 
       - name: Set up Java 25
