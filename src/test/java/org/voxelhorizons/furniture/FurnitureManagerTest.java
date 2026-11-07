@@ -107,6 +107,31 @@ public class FurnitureManagerTest {
         assertTrue(active.useAnimationActive());
     }
 
+    @Test public void addonSnapshotApiIsPublicAndKeepsFurnitureAndInventoryTypes() throws Exception {
+        java.lang.reflect.Method capture = FurnitureManager.class.getMethod(
+                "snapshotForLayout", FurnitureInstance.class);
+        assertEquals(FurnitureInstance.class, capture.getReturnType());
+        java.lang.reflect.Method restore = FurnitureManager.class.getMethod(
+                "placeRestored", org.voxelhorizons.furniture.model.FurnitureDefinition.class,
+                Location.class, float.class, List.class, Integer.class, boolean.class);
+        assertEquals(java.util.Optional.class, restore.getReturnType());
+    }
+
+    @Test public void inventoryAndRgbMetadataStayImmutableInFurnitureInstances() {
+        org.bukkit.inventory.ItemStack original = new org.bukkit.inventory.ItemStack(Material.DIAMOND, 6);
+        FurnitureInstance instance = new FurnitureInstance(UUID.randomUUID(),
+                ContentID.of("voxel", "oak_dresser"), new Location(null, 5.5D, 64, 9.5D),
+                90.0F, FurnitureRendererType.DISPLAY, Collections.<UUID>emptyList(),
+                Collections.<FurnitureBlockPosition>emptyList(), null, 90.0F, null,
+                Arrays.asList(null, original), Integer.valueOf(0x12ABEF), true);
+        original.setAmount(40);
+        assertEquals(Integer.valueOf(0x12ABEF), instance.dyeColor());
+        assertTrue(instance.useAnimationActive());
+        assertEquals(6, instance.inventoryContents().get(1).getAmount());
+        instance.inventoryContents().get(1).setAmount(2);
+        assertEquals(6, instance.inventoryContents().get(1).getAmount());
+    }
+
     @Test(expected = IllegalArgumentException.class)
     public void rejectsCellsThatOverlapAfterRotation() {
         FurnitureManager.resolveBlocks(Arrays.asList(
