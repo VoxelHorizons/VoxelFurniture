@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.voxelhorizons.furniture.FailureWarningLimiter;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -38,6 +39,7 @@ public final class BedrockProjectionPublisher {
     private volatile boolean closed;
     private byte[] lastRequested;
     private long lastRequestTime;
+    private final FailureWarningLimiter snapshotWarnings = new FailureWarningLimiter(60_000L);
 
     private BedrockProjectionPublisher(JavaPlugin plugin,Path output,String kind,BedrockEntityResender resender) {
         this.plugin=plugin;this.output=output;this.kind=kind;this.resender=resender;
@@ -78,9 +80,17 @@ public final class BedrockProjectionPublisher {
                         ? BedrockEntityResender.create(plugin) : null);
         int ticks=Math.max(1,Math.min(200,plugin.getConfig().getInt("bedrock.projection.interval-ticks",5)));
         plugin.getServer().getScheduler().runTaskTimer(plugin,()->{
-            try { publisher.submit(snapshot.get()); }
-            catch (RuntimeException failure) {
-                plugin.getLogger().warning("Bedrock "+kind+" snapshot failed: "+failure.getMessage());
+            try {
+                publisher.submit(snapshot.get());
+                publisher.snapshotWarnings.reset();
+            } catch (RuntimeException failure) {
+                // A malformed definition may be hit on every 5-tick snapshot.
+                // Preserve the last good published file and report the first
+                // error immediately, then only once a minute if it persists.
+                String fingerprint = failure.getClass().getName() + ":" + failure.getMessage();
+                if (publisher.snapshotWarnings.shouldWarn(fingerprint, System.currentTimeMillis())) {
+                    plugin.getLogger().warning("Bedrock " + kind + " snapshot failed: " + failure.getMessage());
+                }
             }
         },1L,ticks);
         plugin.getLogger().info("Bedrock "+kind+" visual state publishing every "+ticks
