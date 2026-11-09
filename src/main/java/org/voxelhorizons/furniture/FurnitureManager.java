@@ -90,6 +90,7 @@ public final class FurnitureManager {
     private final Set<UUID> pendingSynchronization = new HashSet<UUID>();
     private final Set<UUID> forcedSynchronization = new HashSet<UUID>();
     private long contentRevision;
+    private final FailureWarningLimiter contentSyncWarnings = new FailureWarningLimiter(60_000L);
     private long inventoryCloseSequence;
     private long animationTick;
 
@@ -774,11 +775,18 @@ public final class FurnitureManager {
             forcedSynchronization.addAll(instances.keySet());
             synchronizePendingLoaded();
             contentRevision = currentRevision;
+            contentSyncWarnings.reset();
             plugin.getLogger().info("Scheduled placed furniture synchronization for VoxelCore content revision "
                     + currentRevision + "; unloaded furniture will update when its chunk loads.");
         } catch (RuntimeException exception) {
-            plugin.getLogger().warning("Unable to synchronize furniture to VoxelCore content revision "
-                    + currentRevision + ": " + exception.getMessage());
+            // Keep retrying in case a dependency recovers, but do not flood
+            // the console every second for an unchanged invalid content pack.
+            String failure = currentRevision + ":" + exception.getClass().getName()
+                    + ":" + exception.getMessage();
+            if (contentSyncWarnings.shouldWarn(failure, System.currentTimeMillis())) {
+                plugin.getLogger().warning("Unable to synchronize furniture to VoxelCore content revision "
+                        + currentRevision + ": " + exception.getMessage());
+            }
         }
     }
 
