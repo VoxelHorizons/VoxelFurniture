@@ -203,6 +203,57 @@ public final class FurnitureManager {
         return place(definition, location, snapYaw(yaw, definition.rotationStep()), null, null);
     }
 
+    /**
+     * Returns the persisted furniture state with the latest live inventory contents.
+     * In particular, inventories may still have active viewers or a smoker may
+     * be cooking when an addon captures a showroom snapshot. This method does
+     * not close viewers, mutate the furniture, or discard pending GUI changes.
+     * Inventory ItemStacks (including all Bukkit metadata/components) are cloned.
+     */
+    public FurnitureInstance snapshotForLayout(FurnitureInstance requested) {
+        if (requested == null) throw new IllegalArgumentException("Furniture instance is required");
+        FurnitureInstance current = instances.get(requested.id());
+        if (current == null) throw new IllegalArgumentException("Furniture is no longer placed: " + requested.id());
+        Inventory inventory = openInventories.get(current.id());
+        if (inventory == null) inventory = smokerInventories.get(current.id());
+        return inventory == null ? current : withInventoryContents(current, inventory.getContents());
+    }
+
+    /**
+     * Trusted-addon restoration API. Recreates the logical furniture state in
+     * one operation, including original full-fidelity ItemStacks, custom RGB
+     * colour, and use-animation state. This must run on the primary thread.
+     * No player is impersonated and no placement item is consumed.
+     */
+    public Optional<FurnitureInstance> placeRestored(FurnitureDefinition definition, Location location, float yaw,
+            List<ItemStack> inventoryContents, Integer dyeColor, boolean useAnimationActive) {
+        if (!Bukkit.isPrimaryThread())
+            throw new IllegalStateException("Furniture state restoration must run on the server thread");
+        if (definition == null || location == null)
+            throw new IllegalArgumentException("Restoring furniture requires a definition and location");
+        List<ItemStack> content = inventoryContents == null ? Collections.<ItemStack>emptyList() : inventoryContents;
+        if (!content.isEmpty() && (!definition.hasInventory() || content.size() > definition.inventorySize()))
+            throw new IllegalArgumentException("Saved furniture inventory does not fit " + definition.itemId());
+        if (dyeColor != null && (dyeColor.intValue() < 0 || dyeColor.intValue() > 0xFFFFFF))
+            throw new IllegalArgumentException("Saved furniture dye RGB out of range: " + dyeColor);
+        // Validate all stored stacks and clone before modifying the world.
+        List<ItemStack> cloned = new ArrayList<ItemStack>();
+        for (ItemStack item : content) cloned.add(item == null ? null : item.clone());
+        Optional<FurnitureInstance> placed = place(definition, location, yaw);
+        if (!placed.isPresent()) return Optional.empty();
+        FurnitureInstance base = placed.get();
+        FurnitureInstance restored = new FurnitureInstance(base.id(), base.definitionId(), base.location(),
+                base.yaw(), base.renderer(), base.entities(), base.blocks(), base.renderedModel(),
+                base.renderedYaw(), base.renderSignature(), cloned, dyeColor, useAnimationActive);
+        instances.put(restored.id(), restored);
+        if ((dyeColor != null || useAnimationActive) && !synchronizeInstance(restored, true)) {
+            remove(restored.id(), false);
+            throw new IllegalStateException("Unable to restore RGB or animation state for " + definition.itemId());
+        }
+        save();
+        return Optional.of(instances.get(restored.id()));
+    }
+
     private Optional<FurnitureInstance> place(FurnitureDefinition definition, Location location, float yaw,
                                                Player player, ItemStack sourceItem) {
         List<FurnitureBlockPosition> collisionBlocks = resolveBlocks(definition.blocks(), location, yaw);
